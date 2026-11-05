@@ -1,3 +1,5 @@
 node_modules/
 *.log
 tests/out/
+Practice.vbs
+ui/practice.ico
