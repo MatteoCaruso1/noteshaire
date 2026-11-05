@@ -135,3 +135,18 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .keys { display: flex; gap: 3px; margin-top: 6px; }
 .keys i { font-style: normal; font-size: 10px; width: 22px; text-align: center; padding: 1px 0; border-radius: 4px; background: var(--raise); color: var(--faint); }
 .keys i.on { background: color-mix(in srgb, var(--technique) 30%, var(--raise)); color: var(--ink); }
+
+.pace { color: var(--faint); font-size: 12px; margin-right: 12px; }
+.insight { margin-top: 28px; color: var(--mute); font-size: 13.5px; min-height: 1px; }
+.insight b { color: var(--ink); font-weight: 600; }
+.insight .sep { margin: 0 10px; color: var(--faint); }
+.insight + .summary { margin-top: 12px; }
+.weeks { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; height: 160px; align-items: end; }
+.wk { display: grid; grid-template-rows: 1fr auto auto; height: 100%; gap: 4px; text-align: center; }
+.wk .lbl, .wk .min { font-size: 11px; color: var(--faint); }
+.wk.cur .lbl { color: var(--ink); }
+.hitlist { margin-top: 26px; display: grid; gap: 10px; }
+.hitrow { display: grid; grid-template-columns: 160px 1fr; align-items: center; font-size: 13px; color: var(--mute); }
+.hits { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; }
+.hits i { height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--c) var(--p), var(--track) var(--p)); }
+.hits i.hit { box-shadow: 0 0 0 1px var(--gold); }

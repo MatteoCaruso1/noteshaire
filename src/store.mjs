@@ -203,9 +203,9 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
   }
 
   // ---- the week ----------------------------------------------------------------------------------------------------
-  function week(startDay) {
+  function week(startDay, pre) {
     const t0 = new Date(`${startDay}T00:00:00`).getTime(), t1 = t0 + 7 * 864e5 + 3600e3; // the extra hour covers a DST week
-    const all = allPieces(); // first: it adds songs named in Piano Studio
+    const all = pre || allPieces(); // first: it adds songs named in Piano Studio
     const db = songsDb(), songsById = new Map(db.songs.map((s) => [s.id, s]));
     const goals = goalsFor(startDay).map((g) => ({ ...g, seconds: 0 }));
     const days = {}; for (let i = 0; i < 7; i++) days[dayOf(t0 + i * 864e5 + 3600e3)] = {};
@@ -246,7 +246,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const inbox = all.filter((p) => !p.song && !(p.label && p.label.kind) && isMusic(p) && musicSeconds(p) >= SONG_MIN_S)
       .sort((a, b) => b.start_ms - a.start_ms).slice(0, 30).map((p) => slim(p, stretches(p, songsById), songsById));
     const techList = Object.values(tech).map((k) => ({ ...k, nps: +(k.nps.reduce((a, b) => a + b, 0) / k.nps.length).toFixed(1), even: +(k.even.reduce((a, b) => a + b, 0) / k.even.length).toFixed(2) })).sort((a, b) => b.seconds - a.seconds);
-    return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList };
+    return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, streak: streak(all), drills: drillHistory(all) };
   }
 
   function slim(p, st, songsById) {
@@ -254,6 +254,42 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     return { id: p.id, take: p.take, start_ms: p.start_ms, seconds: +(p.t1 - p.t0).toFixed(1), key: p.key, bpm: p.bpm, style: p.style,
       song: p.song, songName: s ? s.name : null, auto: p.auto, guess: p.guess && songsById.get(p.guess) ? songsById.get(p.guess).name : null,
       recording: p.recording, label: p.label, segs: st.map((x) => ({ cat: x.cat, seconds: +x.seconds.toFixed(1), label: x.label || null, kind: x.kind || null })) };
+  }
+
+  /** days in a row with at least 10 minutes played, ending today (or yesterday, if today has nothing yet) */
+  function streak(all) {
+    const per = {};
+    for (const p of all) if (!(p.label && p.label.kind === 'skip')) per[dayOf(p.start_ms)] = (per[dayOf(p.start_ms)] || 0) + p.t1 - p.t0;
+    let n = 0, d = new Date(); d.setHours(12, 0, 0, 0);
+    if ((per[dayOf(d.getTime())] || 0) < 600) d.setDate(d.getDate() - 1);
+    while ((per[dayOf(d.getTime())] || 0) >= 600) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+
+  /** each drill type ("major scale") over the last 8 weeks: top notes a second per week, keys done */
+  function drillHistory(all) {
+    const since = Date.now() - 56 * 864e5, out = {};
+    for (const p of all) {
+      if (p.start_ms < since) continue;
+      for (const s of p.segs) for (const r of s.runs || []) {
+        const type = r.label.replace(/^[A-G][b#]?/, '').trim(), w = weekStart(p.start_ms), d = out[type] || (out[type] = {});
+        const o = d[w] || (d[w] = { week: w, nps: 0, seconds: 0 });
+        o.nps = Math.max(o.nps, r.nps); o.seconds += r.t1 - r.t0;
+      }
+    }
+    return Object.fromEntries(Object.entries(out).map(([t, d]) => [t, Object.values(d).sort((a, b) => a.week.localeCompare(b.week))]));
+  }
+
+  /** the last n weeks: time by category and how full each goal got */
+  function trends(n = 12) {
+    const all = allPieces(), out = [];
+    let w = weekStart(Date.now());
+    for (let i = 0; i < n; i++) {
+      const x = week(w, all);
+      out.unshift({ week: w, total: x.total, cats: x.cats, goals: x.goals.map((g) => ({ name: g.name, counts: g.counts, pct: g.minutes ? g.seconds / (g.minutes * 60) : 0 })) });
+      const d = new Date(`${w}T12:00:00`); d.setDate(d.getDate() - 7); w = dayOf(d.getTime());
+    }
+    return out;
   }
 
   /** technique over time: notes a second and evenness for one scale or pattern label, per day */
@@ -301,7 +337,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     return m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1).map((n) => [+(n.t - p.t0).toFixed(3), n.note, +n.dur.toFixed(3), n.vel]);
   }
 
-  return { root, DATA, takes, allPieces, week, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
+  return { root, DATA, takes, allPieces, week, trends, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
 }
 
 export { MAJOR };

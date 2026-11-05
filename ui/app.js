@@ -38,13 +38,19 @@ function render() {
   renderTab();
 }
 
+function daysLeft() {
+  if (data.week !== thisWeek()) return 0;
+  return 7 - ((new Date().getDay() + 6) % 7);
+}
 function renderGoals() {
+  const left = daysLeft();
   $('#goals').innerHTML = data.goals.map((g) => {
     const goal = g.minutes * 60, pct = goal ? g.seconds / goal : 0, w = Math.min(1, pct) * 100;
+    const pace = left && pct < 1 ? `<span class="pace">${short((goal - g.seconds) / left)} a day</span>` : '';
     const tick = g.minutes > 0 ? Math.max(2, (30 / g.minutes) * 100) : 100;
     return `<div class="goal ${pct >= 1 ? 'done' : ''}" style="--c:var(${colorOf(g.counts)})">
       <div class="goal-head"><span class="goal-name">${esc(g.name)}</span>
-        <span class="goal-val num"><b>${hm(g.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
+        <span class="goal-val num">${pace}<b>${hm(g.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
       <div class="bar"><div class="fill" style="width:${w}%"></div><div class="ticks" style="--tick:${tick}%"></div></div></div>`;
   }).join('') + '<button class="edit-goals" id="editGoals" title="Goals" aria-label="Edit goals">✎</button>';
   $('#editGoals').onclick = openGoals;
@@ -52,6 +58,17 @@ function renderGoals() {
 
 function renderSummary() {
   const c = data.cats, chips = [`<span class="chip">Played <b class="num">${hm(data.total)}</b></span>`];
+  if (data.streak >= 2) chips.push(`<span class="chip">${data.streak} days in a row</span>`);
+  let insight = '';
+  if (data.total >= 600) {
+    const [topCat, topSec] = Object.entries(c).filter(([k]) => k !== 'skip').sort((a, b) => b[1] - a[1])[0] || [];
+    const behind = data.goals.filter((g) => g.minutes > 0).map((g) => ({ g, pct: g.seconds / (g.minutes * 60) })).sort((a, b) => a.pct - b.pct)[0];
+    const parts = [];
+    if (topCat) parts.push(`Most time: <b>${CAT[topCat][0]}</b> ${Math.round((topSec / data.total) * 100)}%`);
+    if (behind && behind.pct < 1) parts.push(`Furthest behind: <b>${esc(behind.g.name)}</b>`);
+    insight = parts.join('<span class="sep">·</span>');
+  }
+  $('#insight').innerHTML = insight;
   if (data.offplan > 0) chips.push(`<span class="chip ${data.total && data.offplan / data.total > 0.3 ? 'warn' : ''}">Outside goals <b class="num">${hm(data.offplan)}</b></span>`);
   for (const k of ['known-song', 'free', 'unnamed']) if (c[k] > 30) chips.push(`<span class="chip" style="--c:var(${CAT[k][1]})"><i></i>${CAT[k][0]} <b class="num">${hm(c[k])}</b></span>`);
   $('#summary').innerHTML = chips.join('');
@@ -96,8 +113,8 @@ function renderInbox() {
 
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  for (const t of ['songs', 'technique', 'log']) $(`#tab-${t}`).hidden = t !== tab;
-  ({ songs: renderSongs, technique: renderTechnique, log: renderLog })[tab]();
+  for (const t of ['songs', 'technique', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
+  ({ songs: renderSongs, technique: renderTechnique, log: renderLog, trends: renderTrends })[tab]();
 }
 
 function ago(ms) {
@@ -139,6 +156,23 @@ function keyboard(h) {
   for (let i = 0; i < 88; i++) { const n = (i + 21) % 12; if ([1, 3, 6, 8, 10].includes(n)) s += `<rect x="${(x - 0.32) * w}%" y="0" width="${w * 0.64}%" height="28" rx="1" fill="${h[i] ? heat(h[i]) : '#0b0c0e'}" stroke="#0e0f11" stroke-width=".6"/>`; else x++; }
   return `<svg preserveAspectRatio="none">${s}</svg>`;
 }
+/** a small line of values (oldest first) */
+function spark(vals) {
+  if (vals.length < 2) return '';
+  const max = Math.max(...vals), min = Math.min(...vals), W = 70, H = 18, x = (i) => (i / (vals.length - 1)) * W, y = (v) => H - 2 - ((v - min) / (max - min || 1)) * (H - 4);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline fill="none" stroke="var(--technique)" stroke-width="1.6" points="${vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/><circle cx="${x(vals.length - 1)}" cy="${y(vals[vals.length - 1])}" r="2.2" fill="var(--technique)"/></svg>`;
+}
+async function renderTrends() {
+  const el = $('#tab-trends');
+  el.innerHTML = '<div class="empty">…</div>';
+  const t = await api('/api/trends');
+  const max = Math.max(1800, ...t.map((w) => w.total)), order = ['technique', 'new-song', 'learning', 'known-song', 'unnamed', 'free'];
+  const label = (w) => new Date(`${w}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const bars = t.map((w) => `<div class="wk ${w.week === data.week ? 'cur' : ''}" title="${label(w.week)}: ${short(w.total)}"><div class="stack">${order.filter((k) => w.cats[k]).map((k) => `<span style="--c:var(${CAT[k][1]});height:${(w.cats[k] / max) * 100}%"></span>`).join('')}</div><div class="lbl">${label(w.week)}</div><div class="min num">${w.total >= 60 ? short(w.total) : ''}</div></div>`).join('');
+  const names = [...new Set(t.flatMap((w) => w.goals.map((g) => g.name)))];
+  const hits = names.map((n) => `<div class="hitrow"><span>${esc(n)}</span><span class="hits">${t.map((w) => { const g = w.goals.find((x) => x.name === n); const p = g ? Math.min(1, g.pct) : 0; return `<i title="${label(w.week)} ${g ? Math.round(g.pct * 100) + '%' : ''}" style="--p:${Math.round(p * 100)}%;--c:var(${colorOf(g && g.counts)})" class="${g && g.pct >= 1 ? 'hit' : ''}"></i>`; }).join('')}</span></div>`).join('');
+  el.innerHTML = `<div class="weeks">${bars}</div><div class="hitlist">${hits}</div>`;
+}
 function renderTechnique() {
   const el = $('#tab-technique');
   // one row per drill ("Major scale"), the keys it went through marked underneath
@@ -150,7 +184,7 @@ function renderTechnique() {
   const t = Object.values(drills).sort((a, b) => b.seconds - a.seconds);
   const keyRow = (keys) => `<span class="keys">${FIFTHS.map((k) => `<i class="${keys[k] ? 'on' : ''}" title="${KEYS[k]}${keys[k] ? ` ${short(keys[k])}` : ''}">${KEYS[k]}</i>`).join('')}</span>`;
   el.innerHTML = `<div class="tech-grid"><div>${wheel(data.keys)}</div><div>${t.length ? `<table><thead><tr><th>Drill</th><th class="r">Time</th><th class="r">Top speed</th><th class="r">Even</th></tr></thead><tbody>${t.map((d) => `
-    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div></div>
+    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${spark((data.drills[d.type] || []).map((x) => x.nps))}${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div></div>
     <div class="kb"><h2>Keyboard</h2>${keyboard(data.keyboard)}</div>`;
 }
 

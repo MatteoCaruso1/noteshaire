@@ -9,7 +9,7 @@
 //   fragment  stop-start playing in short bursts (working something out, playing along with a video)
 //   music     chords and lines: a song or free playing (named later by the song matcher)
 
-export const VERSION = 3;
+export const VERSION = 4;
 
 export const OPT = {
   piece_gap_s: 4,       // no key struck for this long starts a new piece
@@ -356,7 +356,14 @@ export function analyzeTake({ notes }, o = OPT) {
     for (let i = 1; i < wins.length - 1; i++) if (wins[i - 1].kind === wins[i + 1].kind && wins[i].kind !== wins[i - 1].kind) wins[i].kind = wins[i - 1].kind;
     // a piece that is mostly music is one song or one improvisation: fast runs inside it are fills, not scales
     const musicShare = wins.filter((w) => w.kind === 'music').length / wins.length;
-    if (musicShare >= 0.6 && span >= 40) wins.forEach((w) => { w.kind = 'music'; });
+    // (three or more windows in a row of drilling, about 24 s, stay: warm-up scales played straight into a tune)
+    if (musicShare >= 0.6 && span >= 40) {
+      for (let i = 0; i < wins.length;) {
+        let j = i; while (j < wins.length && wins[j].kind === wins[i].kind) j++;
+        if (wins[i].kind !== 'music' && !(TECH.has(wins[i].kind) && j - i >= 3)) for (let k = i; k < j; k++) wins[k].kind = 'music';
+        i = j;
+      }
+    }
     // merge neighbours of the same kind into stretches (each window owns the time from its start to the next one's)
     for (let i = 0; i < wins.length; i++) {
       const w = wins[i], a = i === 0 ? p.t0 : w.t0 + (o.win_s - o.hop_s) / 2, b = i === wins.length - 1 ? p.t1 : wins[i + 1].t0 + (o.win_s - o.hop_s) / 2;

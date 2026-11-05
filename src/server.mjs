@@ -91,6 +91,7 @@ const server = http.createServer(async (req, res) => {
       const w = u.searchParams.get('start');
       return send(res, 200, store.week(/^\d{4}-\d\d-\d\d$/.test(w || '') ? weekStart(new Date(`${w}T12:00:00`).getTime()) : weekStart(Date.now())));
     }
+    if (u.pathname === '/api/trends') return send(res, 200, store.trends(12));
     if (u.pathname === '/api/notes') return send(res, 200, store.pieceNotes(u.searchParams.get('id') || '') || []);
     if (u.pathname === '/api/progress') return send(res, 200, store.progress(u.searchParams.get('label') || ''));
     if (req.method !== 'POST') return send(res, 404, { error: 'unknown' });

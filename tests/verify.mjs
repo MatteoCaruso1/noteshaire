@@ -47,6 +47,12 @@ for (const [name, take, want] of cases) {
   console.log(`  ${name.padEnd(30)} ${want.padEnd(10)} ${(got * 100).toFixed(0).padStart(3)}%`);
   ok(got >= 0.8, `${name}: only ${(got * 100).toFixed(0)}% read as ${want} (${JSON.stringify(s)})`);
 }
+{ // warm-up scales played straight into a tune, no pause: the scales stay technique
+  const sc = G.playScales(['C', 'G', 'D', 'A', 'E', 'B']), tn = G.playTune('allofme', { bpm: 130, start: sc.end - 1 });
+  const s2 = share({ notes: [...sc.notes, ...tn.notes].sort((x, y) => x.t - y.t) });
+  console.log(`  scales straight into a tune     technique ${(s2.technique * 100).toFixed(0)}% (want ~${Math.round(sc.end / tn.end * 100)}%)`);
+  ok(Math.abs(s2.technique - sc.end / tn.end) < 0.08, 'scales played straight into a tune were swallowed by the tune');
+}
 console.log(`  overall ${(right / all * 100).toFixed(1)}% of the time labelled right`);
 ok(right / all >= 0.9, 'overall below 90%');
 
