@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark"></span>Practice</div>
+  <nav class="week">
+    <button id="prev" aria-label="Previous week">‹</button>
+    <span id="weekLabel"></span>
+    <button id="next" aria-label="Next week">›</button>
+  </nav>
+  <div id="status" class="status"></div>
+</header>
+
+<main>
+  <section id="goals" class="goals"></section>
+  <div id="summary" class="summary"></div>
+  <section id="days" class="days"></section>
+  <section id="inbox" class="inbox" hidden></section>
+
+  <div class="tabs" role="tablist">
+    <button data-tab="songs" class="on">Songs</button>
+    <button data-tab="technique">Technique</button>
+    <button data-tab="log">Log</button>
+  </div>
+  <section id="tab-songs" class="tab"></section>
+  <section id="tab-technique" class="tab" hidden></section>
+  <section id="tab-log" class="tab" hidden></section>
+</main>
+
+<dialog id="goalEdit">
+  <form method="dialog">
+    <div id="goalRows"></div>
+    <div class="row-actions">
+      <button type="button" id="addGoal" class="ghost">+ Goal</button>
+      <span class="grow"></span>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="saveGoals" value="save" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+<datalist id="songNames"></datalist>
+<script src="app.js"></script>
+</body>
+</html>

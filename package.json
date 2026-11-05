@@ -1,0 +1,15 @@
+{
+  "name": "practice-log",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Listens to every note played on the Nord and fills weekly practice goals from what was actually played.",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node tests/verify.mjs",
+    "install-app": "node src/install.mjs"
+  },
+  "dependencies": {
+    "midi-file": "^1.2.4"
+  }
+}
