@@ -1,5 +1,7 @@
-# Push a tag like v1.0.1 -> tests run, then the Windows installer and the Mac apps are built and attached to a GitHub
-# Release. Installed Windows copies update themselves from it; Mac copies are told a new version is out.
+# Push a tag like v1.0.2 -> one draft release is made, tests run, the Windows installer and the Mac apps are built into it,
+# and it is published once both builds pass. Installed copies update themselves from it. The Mac apps are signed and
+# notarized with Matteo's Developer ID when the repo's secrets CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID,
+# APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are set (without them the Mac build is unsigned).
 name: release
 on:
   push:
@@ -7,11 +9,15 @@ on:
 permissions:
   contents: write
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "NoteshAIre ${GITHUB_REF_NAME#v}" --notes "Download the Windows installer (.exe) or the Mac app (.dmg: arm64 for Apple chips, x64 for Intel). Setup: https://github.com/$GITHUB_REPOSITORY#get-it"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  windows:
+    needs: draft
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,7 +25,32 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm test
-      - run: npx electron-builder --publish always
+      - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  mac:
+    needs: draft
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  publish:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

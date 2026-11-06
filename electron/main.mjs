@@ -76,12 +76,14 @@ async function macCheck() {
 }
 async function setupUpdates() {
   if (!app.isPackaged) return;
-  if (process.platform === 'darwin') { macCheck(); setInterval(macCheck, 6 * 3600e3); return; }
+  // signed Mac builds update themselves like Windows; an unsigned one cannot, so it falls back to the download notice
+  let macFallback = false;
+  const fallback = () => { if (process.platform !== 'darwin' || macFallback) return; macFallback = true; macCheck(); setInterval(macCheck, 6 * 3600e3); };
   try { ({ autoUpdater } = (await import('electron-updater')).default); } catch { return; }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('update-downloaded', (info) => { updateReady = info.version; trayMenu(); });
-  autoUpdater.on('error', () => {});
+  autoUpdater.on('error', fallback);
   const check = () => autoUpdater.checkForUpdates().catch(() => {});
   check(); setInterval(check, 6 * 3600e3);
   // a downloaded update installs itself after an hour with nothing played, while the window is closed

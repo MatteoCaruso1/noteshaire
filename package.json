@@ -1,6 +1,6 @@
 {
   "name": "noteshaire",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",
@@ -84,14 +84,19 @@
       ],
       "category": "public.app-category.music",
       "icon": "build/icon.png",
-      "artifactName": "NoteshAIre-${version}-mac-${arch}.${ext}"
+      "artifactName": "NoteshAIre-${version}-mac-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
     },
     "publish": [
       {
         "provider": "github",
         "owner": "MatteoCaruso1",
         "repo": "noteshaire",
-        "releaseType": "release"
+        "releaseType": "draft"
       }
     ],
     "npmRebuild": false
