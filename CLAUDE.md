@@ -1,4 +1,4 @@
-# Practice: read this first
+# NoteshAIre (folder practice-log): read this first
 
 Matteo's own practice tracker (asked for 2026-11-05). Every note he plays on the Nord Grand is recorded by Piano Studio
 (ad-machine `scripts/piano/piano-studio.mjs`); this app reads those takes, works out what he practised, and fills his weekly
@@ -40,3 +40,12 @@ PRACTICE_NO_RECORDER=1`.
 Generated practice: 99% of the time labelled right; every key and feel right; every song take matched, including a stride
 take at 2.6x the tempo of the ballad it was named from. His Beatles session: weakest right match 0.208, strongest wrong 0.054.
 Known rough edge: a lick taken through the keys with no breath between keys can report a few extra keys.
+
+## One recording, two things (owner 2026-11-06)
+He plays straight from a drill into a tune with no pause, and must never feel he has to pause for the tool. Pauses never
+lose time (time adds up by kind; a short stretch within 30 s after a song carries on that song). Boundaries: his scissors in
+the Log (cuts.json, click the bar to hear the moment, Join undoes it); once a song is named, `autoCuts` finds it inside any
+longer unnamed piece and cuts around it (autocuts.json); a piece through 7+ keys that is no known song is offered as
+"Through the keys?" with a Technique button. Texture or harmony change detection was measured on his real take
+(ii-V-Is through the keys into Body and Soul) and is not reliable enough to cut on its own: do not add it without a new
+measurement on real takes.

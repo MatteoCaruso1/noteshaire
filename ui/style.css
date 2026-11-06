@@ -163,3 +163,20 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .area .neglect { margin-top: 16px; }
 .take .what { display: flex; gap: 6px; }
 @media (max-width: 640px) { .area { grid-template-columns: 1fr; } }
+
+.week .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-right: 6px; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.sec-head h2 { margin: 0; }
+.sec-head .edit-goals { position: static; }
+h2.sec { margin: 34px 0 0; }
+h2.sec + .insight { margin-top: 10px; }
+.row-tools { display: flex; gap: 6px; align-items: center; }
+.icon { background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--mute); padding: 4px 9px; font-size: 12px; }
+.icon:hover { color: var(--ink); background: var(--raise); }
+.cutter { padding: 12px 0 14px; border-top: 1px solid var(--line); }
+.cutter .track { position: relative; display: flex; height: 34px; border-radius: 8px; overflow: hidden; cursor: crosshair; background: var(--track); }
+.cutter .track span { background: color-mix(in srgb, var(--c) 45%, var(--track)); border-right: 1px solid var(--bg); }
+.cutter .track i { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.12); pointer-events: none; }
+.cutter .marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink); box-shadow: 0 0 0 3px rgba(236,235,232,.15); pointer-events: none; }
+.cut-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--mute); font-size: 13px; }
+.primary:disabled { opacity: .35; cursor: default; }

@@ -1,4 +1,4 @@
-# Practice
+# NoteshAIre
 
 Weekly practice goals that fill up from what is actually played on the Nord. Recording is done by Piano Studio; this app
 listens to every take, tells scales, arpeggios, exercises, licks and songs apart, recognises songs once named, and shows

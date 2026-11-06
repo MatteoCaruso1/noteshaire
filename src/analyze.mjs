@@ -9,7 +9,7 @@
 //   fragment  stop-start playing in short bursts (working something out, playing along with a video)
 //   music     chords and lines: a song or free playing (named later by the song matcher)
 
-export const VERSION = 5;
+export const VERSION = 6;
 
 export const OPT = {
   piece_gap_s: 4,       // no key struck for this long starts a new piece
@@ -41,16 +41,21 @@ export function clusters(notes, win = OPT.cluster_s) {
 }
 
 /** a take -> pieces: a new piece starts after piece_gap_s with no key struck */
-export function splitPieces(notes, o = OPT) {
+export function splitPieces(notes, o = OPT, cuts = []) {
   if (!notes.length) return [];
-  const groups = [[notes[0]]];
+  const cs = [...cuts].sort((x, y) => x - y);
+  const groups = [[notes[0]]], ends = [];
+  let ci = 0; while (ci < cs.length && cs[ci] <= notes[0].t) ci++;
   for (const n of notes.slice(1)) {
     const g = groups[groups.length - 1];
     const lastEnd = g[g.length - 1].t;
-    if (n.t - lastEnd >= o.piece_gap_s) groups.push([n]); else g.push(n);
+    // a cut he made (or one the song matcher found) also starts a new piece
+    let forced = false; while (ci < cs.length && cs[ci] <= n.t) { forced = true; ci++; }
+    if (forced) { ends[groups.length - 1] = cs[ci - 1]; groups.push([n]); }
+    else if (n.t - lastEnd >= o.piece_gap_s) groups.push([n]); else g.push(n);
   }
   return groups
-    .map((g) => ({ t0: g[0].t, t1: Math.max(...g.map((n) => n.t + Math.min(n.dur, 3))), notes: g }))
+    .map((g, i) => ({ t0: g[0].t, t1: Math.min(ends[i] ?? Infinity, Math.max(...g.map((n) => n.t + Math.min(n.dur, 3)))), notes: g }))
     .filter((p) => p.t1 - p.t0 >= o.min_piece_s && p.notes.length >= o.min_piece_notes);
 }
 
@@ -332,8 +337,8 @@ function patternKeys(ev) {
 }
 
 /** one take -> pieces with their stretches, key, tempo and feel. `fp` is the song fingerprint (songs.mjs). */
-export function analyzeTake({ notes }, o = OPT) {
-  const pieces = splitPieces(notes, o);
+export function analyzeTake({ notes }, o = OPT, cuts = []) {
+  const pieces = splitPieces(notes, o, cuts);
   return pieces.map((p) => {
     const segs = [];
     const span = p.t1 - p.t0;
@@ -386,11 +391,15 @@ export function analyzeTake({ notes }, o = OPT) {
     const tp = tempo(p.notes);
     const key = detectKey(p.notes);
     const isMusic = segs.every((s) => s.kind === 'music');
+    // how many keys it moved through (20 s at a time, a minor key counted as its relative major): a drill through the keys
+    // touches many, most tunes two to four
+    const local = new Set();
+    for (let s = p.t0; s + 10 < p.t1; s += 20) { const k = detectKey(p.notes.filter((n) => n.t >= s && n.t < s + 20)); if (k) local.add(k.mode === 'minor' ? (k.root + 3) % 12 : k.root); }
     delete f.line;
     return {
       t0: +p.t0.toFixed(2), t1: +p.t1.toFixed(2), notes: p.notes.length,
       key: key ? key.name : null, keyRoot: key ? key.root : null, keyMode: key ? key.mode : null,
-      bpm: tp.bpm, steady: tp.steady, style: isMusic ? style(p.notes, f, tp) : [],
+      bpm: tp.bpm, steady: tp.steady, keysVisited: local.size, style: isMusic ? style(p.notes, f, tp) : [],
       vel: Math.round(mean(p.notes.map((n) => n.vel))), segs, f, keys88: keyboardUse(p.notes),
     };
   });

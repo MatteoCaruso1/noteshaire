@@ -97,6 +97,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'POST') return send(res, 404, { error: 'unknown' });
     const b = await body(req);
     if (u.pathname === '/api/name') { if (!b.piece || !String(b.name || '').trim()) return send(res, 400, { error: 'piece and name' }); return send(res, 200, store.nameSong(b.piece, b.name, b.status)); }
+    if (u.pathname === '/api/cut') return send(res, 200, { ok: store.cut(String(b.take || ''), +b.t) });
+    if (u.pathname === '/api/join') return send(res, 200, { ok: store.join(String(b.piece || '')) });
     if (u.pathname === '/api/kind') { store.setKind(b.piece, b.kind || null); return send(res, 200, { ok: true }); }
     if (u.pathname === '/api/song') return send(res, 200, store.updateSong(b.id, b) || { error: 'no such song' });
     if (u.pathname === '/api/goals') return send(res, 200, store.setGoals(b.week, b.goals || []));

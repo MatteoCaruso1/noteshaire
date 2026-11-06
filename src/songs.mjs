@@ -100,3 +100,42 @@ export function identify(fp, songs) {
   if (runner && top.score < runner.score * MATCH.margin) return { ...top, unsure: true, runnerUp: runner.song };
   return top;
 }
+
+/** where a song sits inside a longer piece: { score, t0, t1 } in take seconds, or null.
+ *  Every frame here is timed (silent frames kept as zeros) so a match maps back to the clock. */
+export function locate(songFp, notes, t0, t1) {
+  if (!songFp || songFp.length < MATCH.min_frames) return null;
+  const frames = [], times = [];
+  for (let s = t0; s < t1 - FP.win_s / 2; s += FP.hop_s) {
+    const f = fingerprint(notes.filter((n) => n.t < s + FP.win_s && n.t + Math.max(0.15, Math.min(n.dur, 2.5)) > s), s, s + FP.win_s + 0.001)[0];
+    frames.push(f || new Array(12).fill(0)); times.push(s);
+  }
+  const b = stack(frames);
+  let best = null;
+  for (const sp of MATCH.speeds) {
+    const a = stack(resample(songFp, sp));
+    if (!a.length || a.length > b.length * 1.2) continue;
+    // local alignment of the song (a) along the piece (b), remembering where in b the best path starts and ends
+    const n = a.length, m = b.length, d = a[0].length;
+    let prev = new Float32Array(m + 1), prevS = new Int32Array(m + 1).fill(-1), top = { h: 0 };
+    for (let i = 1; i <= n; i++) {
+      const H = new Float32Array(m + 1), S = new Int32Array(m + 1).fill(-1), x = a[i - 1];
+      for (let j = 1; j <= m; j++) {
+        const y = b[j - 1]; let s = 0; for (let k = 0; k < d; k++) s += x[k] * y[k];
+        const gn = s - MATCH.gate;
+        let h = prev[j - 1] + gn, st = prevS[j - 1] < 0 ? j - 1 : prevS[j - 1];
+        if (prev[j] + gn - MATCH.hold > h) { h = prev[j] + gn - MATCH.hold; st = prevS[j] < 0 ? j - 1 : prevS[j]; }
+        if (H[j - 1] + gn - MATCH.hold > h) { h = H[j - 1] + gn - MATCH.hold; st = S[j - 1] < 0 ? j - 1 : S[j - 1]; }
+        if (h <= 0) { h = 0; st = -1; }
+        H[j] = h; S[j] = st;
+        if (h > top.h) top = { h, j0: st, j1: j };
+      }
+      prev = H; prevS = S;
+    }
+    if (top.h > 0) {
+      const len = top.j1 - top.j0, score = top.h / Math.max(MATCH.min_frames, Math.min(n, len));
+      if (!best || score > best.score) best = { score: +score.toFixed(3), t0: times[top.j0], t1: times[Math.min(times.length - 1, top.j1 + MATCH.stack - 1)] + FP.win_s };
+    }
+  }
+  return best;
+}

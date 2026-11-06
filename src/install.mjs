@@ -47,11 +47,13 @@ function icon() {
 }
 fs.writeFileSync(path.join(DIR, 'ui', 'practice.ico'), icon());
 
-const shortcut = (where, args) => ps(`$s = (New-Object -ComObject WScript.Shell).CreateShortcut('${where}'); $s.TargetPath = 'C:\\Windows\\System32\\wscript.exe'; $s.Arguments = '"${path.join(DIR, 'Practice.vbs')}" ${args}'; $s.WorkingDirectory = '${DIR}'; $s.IconLocation = '${path.join(DIR, 'ui', 'practice.ico')}'; $s.Description = 'Practice'; $s.Save(); 'ok'`);
+const shortcut = (where, args) => ps(`$s = (New-Object -ComObject WScript.Shell).CreateShortcut('${where}'); $s.TargetPath = 'C:\\Windows\\System32\\wscript.exe'; $s.Arguments = '"${path.join(DIR, 'Practice.vbs')}" ${args}'; $s.WorkingDirectory = '${DIR}'; $s.IconLocation = '${path.join(DIR, 'ui', 'practice.ico')}'; $s.Description = 'NoteshAIre'; $s.Save(); 'ok'`);
 const desktop = ps("[Environment]::GetFolderPath('Desktop')"), startup = ps("[Environment]::GetFolderPath('Startup')");
-shortcut(path.join(desktop, 'Practice.lnk'), '');
-shortcut(path.join(startup, 'Practice.lnk'), '/background');
-console.log(`desktop shortcut: ${path.join(desktop, 'Practice.lnk')}\nstarts with Windows: ${path.join(startup, 'Practice.lnk')}`);
+// renamed NoteshAIre (owner 2026-11-06): the old Practice shortcuts go
+for (const old of [path.join(desktop, 'Practice.lnk'), path.join(startup, 'Practice.lnk')]) try { fs.unlinkSync(old); } catch {}
+shortcut(path.join(desktop, 'NoteshAIre.lnk'), '');
+shortcut(path.join(startup, 'NoteshAIre.lnk'), '/background');
+console.log(`desktop shortcut: ${path.join(desktop, 'NoteshAIre.lnk')}\nstarts with Windows: ${path.join(startup, 'NoteshAIre.lnk')}`);
 
 // and start it now
 spawn('C:/Windows/System32/wscript.exe', [path.join(DIR, 'Practice.vbs'), '/background'], { detached: true, stdio: 'ignore' }).unref();

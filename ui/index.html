@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Practice</title>
+<title>NoteshAIre</title>
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <div class="brand"><span class="mark"></span>Practice</div>
-  <nav class="week">
+  <div class="brand"><span class="mark"></span>NoteshAIre</div>
+  <nav class="week"><span class="label">Week</span>
     <button id="prev" aria-label="Previous week">‹</button>
     <span id="weekLabel"></span>
     <button id="next" aria-label="Next week">›</button>
@@ -19,7 +19,9 @@
 </header>
 
 <main>
+  <div class="sec-head"><h2>Goals</h2><button class="edit-goals" id="editGoals" title="Edit goals" aria-label="Edit goals">✎</button></div>
   <section id="goals" class="goals"></section>
+  <h2 class="sec">Stats</h2>
   <div id="insight" class="insight"></div>
   <div id="summary" class="summary"></div>
   <section id="days" class="days"></section>

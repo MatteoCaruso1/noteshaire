@@ -177,3 +177,29 @@ export function playFragments({ seconds = 60, seed = 6, start = 0 } = {}) {
   }
   return { notes, end: t };
 }
+
+/** ii-V-I licks through the keys: left-hand shells, a right-hand line over each ii-V-I, straight into the next key */
+export function playIIVI(keys = ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G'], { bpm = 120, seed = 41, start = 0, reps = 2 } = {}) {
+  const r = rng(seed), notes = [], spb = 60 / bpm; let t = start;
+  for (const k of keys) {
+    const I = ROOTS[k], ii = (I + 2) % 12, V = (I + 7) % 12;
+    for (let rep = 0; rep < reps; rep++) {
+      const prog = [[ii, QUAL.m7], [V, QUAL['7']], [I, QUAL.maj7], [I, QUAL.maj7]];
+      prog.forEach(([root, iv], bar) => {
+        const bt = t + bar * 4 * spb;
+        for (const x of [iv[1], iv[3]]) notes.push({ t: human(r, bt), dur: spb * 1.8, note: 52 + ((root + x - 4 + 24) % 12), vel: 60 });
+        notes.push({ t: human(r, bt), dur: spb * 1.8, note: 36 + root - (root > 9 ? 12 : 0), vel: 66 });
+        let p = 67 + ((root + iv[r() < 0.5 ? 1 : 2]) % 12);
+        for (let e = 0; e < (bar === 3 ? 4 : 8); e++) {
+          const pcs = iv.map((x) => (root + x) % 12).concat([(root + 2) % 12, (root + 5) % 12]);
+          const cand = []; for (let q = p - 3; q <= p + 3; q++) if (q !== p && pcs.includes(((q % 12) + 12) % 12)) cand.push(q);
+          p = Math.min(82, Math.max(62, cand[Math.floor(r() * cand.length)] || p));
+          notes.push({ t: human(r, bt + e * spb / 2 + (e % 2 ? 0.08 : 0)), dur: spb * 0.45, note: p, vel: 70 + Math.floor(r() * 20) });
+        }
+      });
+      t += 16 * spb;
+    }
+  }
+  notes.sort((a, b) => a.t - b.t);
+  return { notes, end: t };
+}

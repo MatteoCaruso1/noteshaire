@@ -52,8 +52,7 @@ function renderGoals() {
       <div class="goal-head"><span class="goal-name">${esc(g.name)}</span>
         <span class="goal-val num">${pace}<b>${hm(g.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
       <div class="bar"><div class="fill" style="width:${w}%"></div><div class="ticks" style="--tick:${tick}%"></div></div></div>`;
-  }).join('') + '<button class="edit-goals" id="editGoals" title="Goals" aria-label="Edit goals">✎</button>';
-  $('#editGoals').onclick = openGoals;
+  }).join('');
 }
 
 function renderSummary() {
@@ -96,10 +95,11 @@ function renderInbox() {
   box.innerHTML = `<h2>Name ${data.inbox.length === 1 ? 'this' : `these ${data.inbox.length}`}</h2>` + data.inbox.map((p) => `
     <div class="take" data-id="${esc(p.id)}">
       <button class="play" title="Listen">${PLAY}</button>
-      <div class="meta"><b>${p.guess ? `${esc(p.guess)}?` : 'Song'}</b><br>${pieceMeta(p)}</div>
+      <div class="meta"><b>${p.guess ? `${esc(p.guess)}?` : p.throughKeys ? 'Through the keys?' : 'Song'}</b><br>${pieceMeta(p)}</div>
       <div class="name-form">
         <input placeholder="Song" list="songNames" value="${esc(p.guess || '')}">
         <span class="seg"><button class="new" data-s="new" title="New to my repertoire">New</button><button data-s="known" title="I know it">Known</button></span>
+        ${p.throughKeys ? '<button class="primary tech">Technique</button>' : ''}
         <select class="mini" aria-label="Not a song"><option value="">Not a song</option><option value="free">Free play</option><option value="technique">Technique</option><option value="learning">New material</option><option value="skip">Not practice</option></select>
       </div></div>`).join('');
   box.querySelectorAll('.take').forEach((row) => {
@@ -107,6 +107,7 @@ function renderInbox() {
     $('.play', row).onclick = (e) => togglePlay(id, e.currentTarget);
     row.querySelectorAll('.seg button').forEach((b) => { b.onclick = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: b.dataset.s }); load(); }; });
     inp.onkeydown = (e) => { if (e.key === 'Enter' && inp.value.trim()) { const known = data.songs.find((x) => x.name.toLowerCase() === inp.value.trim().toLowerCase()); api('/api/name', { piece: id, name: inp.value.trim(), status: known ? known.status : 'new' }).then(load); } };
+    const tb = $('.tech', row); if (tb) tb.onclick = async () => { await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
     $('select', row).onchange = async (e) => { if (e.target.value) { await api('/api/kind', { piece: id, kind: e.target.value }); load(); } };
   });
 }
@@ -219,6 +220,25 @@ function drillSummary(labels) {
   for (const l of labels) { const m = l.match(/^([A-G][b#]?)(.*)$/); const type = m ? m[2].trim() : l; (by[type] ||= new Set()).add(m ? m[1] : ''); }
   return Object.entries(by).map(([t, ks]) => `${t[0].toUpperCase()}${t.slice(1)} ${[...ks].join(' ')}`.trim());
 }
+/** scissors: a timeline of the piece; click to hear that moment, then cut there */
+function openCutter(row) {
+  document.querySelectorAll('.cutter').forEach((c) => c.remove());
+  const p = data.pieces.find((x) => x.id === row.dataset.ids), len = p.t1 - p.t0;
+  let at = null;
+  const segs = p.segs.map((x) => `<span style="flex:${x.seconds};--c:var(${CAT[x.cat][1]})" title="${CAT[x.cat][0]} ${short(x.seconds)}"></span>`).join('');
+  const ticks = Array.from({ length: Math.floor(len / 60) }, (_, i) => `<i style="left:${((i + 1) * 60 / len) * 100}%"></i>`).join('');
+  row.insertAdjacentHTML('afterend', `<div class="cutter"><div class="track">${segs}${ticks}<b class="marker" hidden></b></div>
+    <div class="cut-row"><span class="num cut-time">Click the bar to listen</span><span class="grow"></span><button class="ghost cancel">Cancel</button><button class="primary go" disabled>Cut here</button></div></div>`);
+  const box = row.nextElementSibling, track = $('.track', box), marker = $('.marker', box);
+  track.onclick = (e) => {
+    const r = track.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    at = f * len; marker.hidden = false; marker.style.left = `${f * 100}%`;
+    $('.cut-time', box).textContent = mss(at); $('.go', box).disabled = false;
+    playFrom(p.id, at, 8);
+  };
+  $('.cancel', box).onclick = () => { stopPlay(); box.remove(); };
+  $('.go', box).onclick = async () => { stopPlay(); await api('/api/cut', { take: p.take, t: p.t0 + at }); load(); };
+}
 const KIND_OPTS = [['', 'Auto'], ['song', 'Song'], ['technique', 'Technique'], ['learning', 'New material'], ['free', 'Free play'], ['skip', 'Not practice']];
 function renderLog() {
   const el = $('#tab-log');
@@ -229,10 +249,13 @@ function renderLog() {
   const rows = [];
   for (const p of [...data.pieces].reverse()) {
     const last = rows[rows.length - 1];
-    if (last && !p.song && sig(last) === sig(p) && p.start_ms - (last.start_ms + last.seconds * 1000) < 180e3 && new Date(p.start_ms).toDateString() === new Date(last.start_ms).toDateString()) {
+    if (last && !p.song && p.seconds < 120 && last.played < 120 && sig(last) === sig(p) && p.start_ms - (last.start_ms + last.seconds * 1000) < 180e3 && new Date(p.start_ms).toDateString() === new Date(last.start_ms).toDateString()) {
       last.ids.push(p.id); last.seconds = (p.start_ms - last.start_ms) / 1000 + p.seconds; last.played += p.seconds; last.segs = last.segs.concat(p.segs);
     } else rows.push({ ...p, ids: [p.id], played: p.seconds });
   }
+  // a piece that starts right where the one before it (same take) ended came from a cut: it can be joined back
+  const all = [...data.pieces].sort((a, b) => a.start_ms - b.start_ms);
+  for (const r of rows) { const p = all.find((x) => x.id === r.ids[0]), i = all.indexOf(p), prev = all[i - 1]; r.joinable = r.ids.length === 1 && prev && prev.take === p.take && p.t0 - prev.t1 < 1; }
   for (const p of rows.reverse()) (byDay[new Date(p.start_ms).toDateString()] ||= []).push(p);
   el.innerHTML = Object.entries(byDay).map(([d, ps]) => `<div class="logday"><h3>${new Date(d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>${ps.map((p) => {
     const cats = {}; p.segs.forEach((s) => { cats[s.cat] = (cats[s.cat] || 0) + s.seconds; });
@@ -243,8 +266,11 @@ function renderLog() {
     const cur = p.label && p.label.kind ? p.label.kind : '';
     return `<div class="entry" data-ids="${esc(p.ids.join(' '))}"><span class="when num">${clock(p.start_ms)}</span><span class="num">${mss(p.played)}</span>
       <span class="what">${tags.join('')}${extra.join('')}</span>
-      <select class="mini" aria-label="Fix">${KIND_OPTS.map(([v, n]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+      <span class="row-tools">${p.ids.length === 1 && p.seconds >= 20 ? '<button class="icon cut" title="Cut in two">✂</button>' : ''}${p.joinable ? '<button class="icon join" title="Join with the piece before">Join</button>' : ''}
+      <select class="mini" aria-label="Fix">${KIND_OPTS.map(([v, n]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></span></div>`;
   }).join('')}</div>`).join('');
+  el.querySelectorAll('.entry .cut').forEach((b) => { b.onclick = () => openCutter(b.closest('.entry')); });
+  el.querySelectorAll('.entry .join').forEach((b) => { b.onclick = async () => { await api('/api/join', { piece: b.closest('.entry').dataset.ids }); load(); }; });
   el.querySelectorAll('.entry select').forEach((s) => { s.onchange = async () => { for (const id of s.closest('.entry').dataset.ids.split(' ')) await api('/api/kind', { piece: id, kind: s.value || null }); load(); }; });
 }
 
@@ -271,14 +297,18 @@ $('#goalEdit').addEventListener('close', async () => {
 
 // ---- listening to a take (a plain built-in piano tone, enough to recognise the tune) ----
 let audio = null, playing = null;
-async function togglePlay(id, btn) {
-  if (playing) { playing.stop(); const was = playing.id; playing = null; if (was === id) return; }
+function stopPlay() { if (playing) playing.stop(); }
+async function playFrom(id, from, secs) {
+  stopPlay();
   audio ||= new AudioContext();
-  const notes = await api(`/api/notes?id=${encodeURIComponent(id)}`);
-  const t0 = audio.currentTime + 0.1, out = audio.createGain(); out.gain.value = 0.18; out.connect(audio.destination);
+  const notes = (await api(`/api/notes?id=${encodeURIComponent(id)}`)).filter((n) => n[0] >= from && n[0] < from + secs).map(([t, ...r]) => [t - from, ...r]);
+  playing = scheduleNotes(notes, id, null, secs);
+}
+function scheduleNotes(notes, id, btn, limit) {
+  const t0 = audio.currentTime + 0.05, out = audio.createGain(); out.gain.value = 0.18; out.connect(audio.destination);
   const nodes = [];
   for (const [t, note, dur, vel] of notes) {
-    if (t > 90) break;
+    if (t > limit) break;
     const f = 440 * 2 ** ((note - 69) / 12), g = audio.createGain(), o1 = audio.createOscillator(), o2 = audio.createOscillator();
     o1.type = 'triangle'; o1.frequency.value = f; o2.type = 'sine'; o2.frequency.value = f * 2;
     const at = t0 + t, len = Math.min(4, dur + 0.4), peak = (vel / 127) * 0.5;
@@ -286,9 +316,16 @@ async function togglePlay(id, btn) {
     o1.connect(g); o2.connect(g); g.connect(out); o1.start(at); o2.start(at); o1.stop(at + len); o2.stop(at + len);
     nodes.push(o1, o2);
   }
-  btn.innerHTML = STOP;
-  const done = setTimeout(() => { if (playing && playing.id === id) playing.stop(); }, (Math.min(90, notes.length ? notes[notes.length - 1][0] : 0) + 4) * 1000);
-  playing = { id, stop: () => { clearTimeout(done); out.disconnect(); nodes.forEach((n) => { try { n.stop(); } catch {} }); btn.innerHTML = PLAY; if (playing && playing.id === id) playing = null; } };
+  const p = { id, stop: () => { clearTimeout(p.timer); out.disconnect(); nodes.forEach((n) => { try { n.stop(); } catch {} }); if (btn) btn.innerHTML = PLAY; if (playing === p) playing = null; } };
+  p.timer = setTimeout(() => p.stop(), (Math.min(limit, notes.length ? notes[notes.length - 1][0] : 0) + 4) * 1000);
+  if (btn) btn.innerHTML = STOP;
+  return p;
+}
+async function togglePlay(id, btn) {
+  if (playing) { const was = playing.id; playing.stop(); if (was === id) return; }
+  audio ||= new AudioContext();
+  const notes = await api('/api/notes?id=' + encodeURIComponent(id));
+  playing = scheduleNotes(notes, id, btn, 90);
 }
 
 // ---- live status ----
@@ -309,6 +346,7 @@ async function status() {
 }
 
 document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; try { localStorage.setItem('tab', tab); } catch {} renderTab(); }; });
+$('#editGoals').onclick = () => openGoals();
 $('#prev').onclick = () => { week = shiftWeek(week, -1); load(); };
 $('#next').onclick = () => { week = shiftWeek(week, 1); load(); };
 try { tab = localStorage.getItem('tab') || 'songs'; } catch {}

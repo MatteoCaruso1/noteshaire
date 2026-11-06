@@ -167,5 +167,53 @@ section('5. the week: goals fill from what was played, corrections, Piano Studio
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+section('6. one recording, two things (owner 2026-11-06: ii-V-Is through the keys straight into Body and Soul)');
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'practice-verify-'));
+  const save = (day, hhmmss, take) => {
+    const dir = path.join(root, 'midi', day); fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `take-${hhmmss}.mid`), writeSmf(take.notes));
+    fs.writeFileSync(path.join(dir, `take-${hhmmss}.json`), JSON.stringify({ start_ms: new Date(`${day}T${hhmmss.slice(0, 2)}:${hhmmss.slice(2, 4)}:00`).getTime() }));
+  };
+  const drill = G.playIIVI(), tune = G.playTune('dflat', { feel: 'ballad', bpm: 64, seed: 52, start: drill.end + 1 });
+  save('2026-11-04', '190000', { notes: [...drill.notes, ...tune.notes].sort((x, y) => x.t - y.t) });
+  const st = openStore({ root, data: path.join(root, 'practice') });
+  let w = st.week('2026-11-02');
+  ok(w.pieces.length === 1, 'drill and tune with a 1 s pause should still be one piece before anything is known');
+  ok(w.inbox[0] && w.inbox[0].throughKeys, 'ii-V-Is through 12 keys not offered as "Through the keys?"');
+  // the scissors: he cuts at the boundary; both parts are asked about anew
+  ok(st.cut('2026-11-04/take-190000', drill.end + 0.5), 'cut refused');
+  w = st.week('2026-11-02');
+  const parts = w.pieces.filter((p) => p.take === '2026-11-04/take-190000').sort((a, b) => a.t0 - b.t0);
+  console.log(`  after the cut: ${parts.map((p) => `${Math.round(p.t0)}-${Math.round(p.t1)}`).join(', ')}`);
+  ok(parts.length === 2 && Math.abs(parts[1].t0 - drill.end - 1) < 2, 'cut did not split the take at the boundary');
+  st.setKind(parts[0].id, 'technique');
+  st.nameSong(parts[1].id, 'Body and Soul', 'new');
+  w = st.week('2026-11-02');
+  ok(Math.abs(w.goals.find((g) => g.id === 'technique').seconds - drill.end) < 10, 'drill part not counted as technique');
+  ok(w.goals.find((g) => g.id === 'new-standards').seconds > 150, 'Body and Soul part not counted as a new standard');
+  // the next day: the same drill straight into Body and Soul is cut by itself, because Body and Soul is known now
+  const d2 = G.playIIVI(['D', 'G', 'C', 'F', 'Bb', 'Eb', 'Ab'], { seed: 61 }), t2 = G.playTune('dflat', { feel: 'ballad', bpm: 70, seed: 62, start: d2.end + 0.8 });
+  save('2026-11-05', '190000', { notes: [...d2.notes, ...t2.notes].sort((x, y) => x.t - y.t) });
+  w = st.week('2026-11-02');
+  const day2 = w.pieces.filter((p) => p.take === '2026-11-05/take-190000').sort((a, b) => a.t0 - b.t0);
+  console.log(`  next day, no cut by hand: ${day2.map((p) => `${Math.round(p.t0)}-${Math.round(p.t1)} ${p.songName || p.segs[0].cat}`).join(', ')} (boundary ${Math.round(d2.end)})`);
+  ok(day2.length === 2 && Math.abs(day2[1].t0 - d2.end) < 5 && day2[1].songName === 'Body and Soul', 'a known song inside a longer take was not cut out by itself');
+  // join undoes a cut
+  st.join(parts[1].id);
+  ok(st.week('2026-11-02').pieces.filter((p) => p.take === '2026-11-04/take-190000').length === 1, 'join did not undo the cut');
+  // a sip of water: a short stretch right after a song carries on that song
+  const song = G.playTune('allofme', { bpm: 130, seed: 71 }), rest = G.playTune('allofme', { bpm: 130, seed: 72, choruses: ['head'], start: song.end + 8 });
+  const tail = { notes: rest.notes.filter((n) => n.t < song.end + 8 + 25) };
+  save('2026-11-06', '190000', { notes: [...song.notes, ...tail.notes].sort((x, y) => x.t - y.t) });
+  w = st.week('2026-11-02');
+  const six = w.pieces.filter((p) => p.take === '2026-11-06/take-190000').sort((a, b) => a.t0 - b.t0);
+  st.nameSong(six[0].id, 'All of Me', 'known');
+  w = st.week('2026-11-02');
+  const after = w.pieces.filter((p) => p.take === '2026-11-06/take-190000').sort((a, b) => a.t0 - b.t0);
+  ok(after.length === 2 && after[1].songName === 'All of Me', `the stretch after an 8 s pause was not kept with its song (${after.map((p) => p.songName).join(', ')})`);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 console.log(`\n${fails ? `${fails} of ${checks} checks FAILED` : `all ${checks} checks passed`}`);
 process.exit(fails ? 1 : 0);
