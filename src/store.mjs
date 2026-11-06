@@ -163,7 +163,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
   function stretches(p, songsById) {
     const kindFix = p.label && p.label.kind;
     if (kindFix === 'skip') return [{ cat: 'skip', seconds: p.t1 - p.t0 }];
-    if (kindFix && kindFix !== 'song') return [{ cat: kindFix, seconds: p.t1 - p.t0, key: p.keyRoot }];
+    if (kindFix && kindFix !== 'song') return [{ cat: kindFix, seconds: p.t1 - p.t0, key: p.keyRoot, kb: p.keys88 }];
     const songCat = () => {
       const s = p.song && songsById.get(p.song);
       if (s) return s.status === 'new' ? 'new-song' : 'known-song';
@@ -171,9 +171,10 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     };
     return p.segs.map((s) => {
       const sec = s.t1 - s.t0;
-      if (TECH.has(s.kind)) return { cat: 'technique', seconds: sec, kind: s.kind, label: s.label, keys: s.keys, runs: s.runs };
-      if (s.kind === 'lick' || s.kind === 'fragment') return { cat: 'learning', seconds: sec, kind: s.kind, key: s.key };
-      return { cat: kindFix === 'song' || isMusic(p) ? songCat() : 'free', seconds: sec, kind: 'music', key: p.keyRoot };
+      if (TECH.has(s.kind)) return { cat: 'technique', seconds: sec, kind: s.kind, label: s.label, keys: s.keys, runs: s.runs, kb: s.keys88 };
+      if (s.kind === 'lick' || s.kind === 'fragment') return { cat: 'learning', seconds: sec, kind: s.kind, key: s.key, kb: s.keys88 };
+      const cat = kindFix === 'song' || isMusic(p) ? songCat() : 'free';
+      return { cat, seconds: sec, kind: 'music', key: cat === 'free' ? (s.key ?? p.keyRoot) : p.keyRoot, kb: s.keys88 };
     });
   }
 
@@ -247,37 +248,41 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       .sort((a, b) => b.start_ms - a.start_ms).slice(0, 30).map((p) => slim(p, stretches(p, songsById), songsById));
     const techList = Object.values(tech).map((k) => ({ ...k, nps: +(k.nps.reduce((a, b) => a + b, 0) / k.nps.length).toFixed(1), even: +(k.even.reduce((a, b) => a + b, 0) / k.even.length).toFixed(2) })).sort((a, b) => b.seconds - a.seconds);
     const keys = { week: keyTally(all, t0, t1, songsById), month: keyTally(all, t1 - 28 * 864e5, t1, songsById) };
-    return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, streak: streak(all), drills: drillHistory(all) };
+    const noodles = pieces.filter((p) => p.segs.some((x) => x.cat === 'free' || x.cat === 'learning'));
+    return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, noodles, streak: streak(all), drills: drillHistory(all) };
   }
 
   function slim(p, st, songsById) {
     const s = p.song && songsById.get(p.song);
     return { id: p.id, take: p.take, start_ms: p.start_ms, seconds: +(p.t1 - p.t0).toFixed(1), key: p.key, bpm: p.bpm, style: p.style,
       song: p.song, songName: s ? s.name : null, auto: p.auto, guess: p.guess && songsById.get(p.guess) ? songsById.get(p.guess).name : null,
-      recording: p.recording, label: p.label, segs: st.map((x) => ({ cat: x.cat, seconds: +x.seconds.toFixed(1), label: x.label || null, kind: x.kind || null })) };
+      recording: p.recording, label: p.label, segs: st.map((x) => ({ cat: x.cat, seconds: +x.seconds.toFixed(1), label: x.label || null, kind: x.kind || null, key: x.key ?? null })) };
   }
 
-  /** time in each key (by tonic, 0 = C), songs and technique apart. A named song counts in its usual key (the key of most
-   *  of its takes), so one odd reading does not move it; free play and stop-start learning are left out. */
+  /** each area (songs, technique, noodling): time in each key (by tonic, 0 = C) and where on the keyboard the hands were.
+   *  A named song counts in its usual key (the key of most of its takes), so one odd reading does not move it. */
+  const AREA = { 'new-song': 'songs', 'known-song': 'songs', unnamed: 'songs', technique: 'technique', free: 'noodling', learning: 'noodling' };
   function keyTally(all, from, to, songsById) {
     const songKey = {};
     for (const p of all) if (p.song && p.keyRoot != null) { const v = (songKey[p.song] ||= new Array(12).fill(0)); v[p.keyRoot] += p.t1 - p.t0; }
     const usual = (id) => { const v = songKey[id]; return v ? v.indexOf(Math.max(...v)) : null; };
-    const songs = new Array(12).fill(0), tech = new Array(12).fill(0), names = {};
+    const out = {};
+    for (const a of ['songs', 'technique', 'noodling']) out[a] = { keys: new Array(12).fill(0), kb: new Array(88).fill(0), names: {} };
     for (const p of all) {
       if (p.start_ms < from || p.start_ms >= to) continue;
-      for (const st of stretches(p, songsById)) {
-        if (st.cat === 'technique') for (const r of st.runs || []) tech[r.key] += r.t1 - r.t0;
-        else if (st.cat === 'new-song' || st.cat === 'known-song' || st.cat === 'unnamed') {
-          const k = p.song ? usual(p.song) : p.keyRoot;
-          if (k == null) continue;
-          songs[k] += st.seconds;
-          const n = p.song && songsById.get(p.song) ? songsById.get(p.song).name : null;
-          if (n) (names[k] ||= new Set()).add(n);
-        }
+      for (const x of stretches(p, songsById)) {
+        const area = AREA[x.cat]; if (!area) continue;
+        const o = out[area];
+        (x.kb || []).forEach((v, i) => { o.kb[i] += v; });
+        if (area === 'technique') { for (const r of x.runs || []) o.keys[r.key] += r.t1 - r.t0; continue; }
+        const k = area === 'songs' && p.song ? usual(p.song) : x.key;
+        if (k == null) continue;
+        o.keys[k] += x.seconds;
+        const n = area === 'songs' && p.song && songsById.get(p.song) ? songsById.get(p.song).name : null;
+        if (n) (o.names[k] ||= []).includes(n) || o.names[k].push(n);
       }
     }
-    return { songs, tech, names: Object.fromEntries(Object.entries(names).map(([k, v]) => [k, [...v]])) };
+    return out;
   }
 
   /** days in a row with at least 10 minutes played, ending today (or yesterday, if today has nothing yet) */

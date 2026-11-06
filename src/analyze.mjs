@@ -9,7 +9,7 @@
 //   fragment  stop-start playing in short bursts (working something out, playing along with a video)
 //   music     chords and lines: a song or free playing (named later by the song matcher)
 
-export const VERSION = 4;
+export const VERSION = 5;
 
 export const OPT = {
   piece_gap_s: 4,       // no key struck for this long starts a new piece
@@ -373,6 +373,7 @@ export function analyzeTake({ notes }, o = OPT) {
     for (const s of segs) {
       const ns = p.notes.filter((n) => n.t >= s.t0 && n.t < s.t1);
       s.notes = ns.length;
+      s.keys88 = keyboardUse(ns);
       if (TECH.has(s.kind)) {
         // one key at a time: a breath between keys splits the stretch into runs, each named on its own
         s.runs = techniqueRuns(ns, s.kind);

@@ -26,6 +26,8 @@ edited in the app (pencil by the bars), and carry to the next week.
   Goal counts: technique, new-song, known-song, learning, recording (a take in any Piano Studio set), any, key:<0-11>,
   style:<tag>, song:<id>. A correction moves time between categories; it never adds time.
 - `ui/`: one page, no build step. Kept terse on purpose (owner: "no description text when it's not necessary").
+  Tabs (owner 2026-11-06): Songs, Technique, Noodling share one layout (keys wheel, keyboard heatmap, untouched keys,
+  then the list: songs / drills / improv pieces with play buttons; new material sits under Noodling), then Log and Trends.
 
 ## Tests
 `npm test` (about 2 s): generated practice with known answers (`tests/gen.mjs`) for every drill and feel, song matching

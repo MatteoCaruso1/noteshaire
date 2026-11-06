@@ -113,8 +113,8 @@ function renderInbox() {
 
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  for (const t of ['songs', 'technique', 'keys', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
-  ({ songs: renderSongs, technique: renderTechnique, keys: renderKeys, log: renderLog, trends: renderTrends })[tab]();
+  for (const t of ['songs', 'technique', 'noodling', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
+  ({ songs: renderSongs, technique: renderTechnique, noodling: renderNoodling, log: renderLog, trends: renderTrends })[tab]();
 }
 
 function ago(ms) {
@@ -124,54 +124,58 @@ function ago(ms) {
 }
 function renderSongs() {
   const el = $('#tab-songs');
-  if (!data.songs.length) { el.innerHTML = '<div class="empty">No songs yet</div>'; return; }
+  if (!data.songs.length) { el.innerHTML = areaTop('songs', '--new-song') + '<div class="empty">No songs yet</div>'; wireSpan(el); return; }
   const max = Math.max(60, ...data.songs.map((s) => s.weekSeconds));
-  el.innerHTML = `<table><thead><tr><th>Song</th><th></th><th>This week</th><th class="r">Plays</th><th class="r">Key</th><th class="r">Last</th></tr></thead><tbody>${data.songs.map((s) => `
+  el.innerHTML = areaTop('songs', '--new-song') + `<table><thead><tr><th>Song</th><th></th><th>This week</th><th class="r">Plays</th><th class="r">Key</th><th class="r">Last</th></tr></thead><tbody>${data.songs.map((s) => `
     <tr><td>${esc(s.name)}</td>
       <td><button class="status-btn ${s.status === 'new' ? 'new' : ''}" data-id="${esc(s.id)}" data-s="${s.status}">${s.status === 'new' ? 'New' : 'Known'}</button></td>
       <td class="num"><span class="mbar" style="width:${Math.round((s.weekSeconds / max) * 120)}px;--c:var(${s.status === 'new' ? '--new-song' : '--known-song'})"></span>${s.weekSeconds ? short(s.weekSeconds) : ''}</td>
       <td class="r num">${s.plays}</td><td class="r">${esc(s.key || '')}</td><td class="r">${ago(s.last)}</td></tr>`).join('')}</tbody></table>`;
+  wireSpan(el);
   el.querySelectorAll('.status-btn').forEach((b) => { b.onclick = async () => { await api('/api/song', { id: b.dataset.id, status: b.dataset.s === 'new' ? 'known' : 'new' }); load(); }; });
 }
 
 const FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 let keySpan = 'week';
-/** circle of fifths: outer ring songs (green), inner ring technique (blue); brightness = time in that key */
-function wheel(k) {
-  const C = 130, max = Math.max(60, ...k.songs, ...k.tech);
-  const fill = (v, c) => (v >= 10 ? `color-mix(in srgb, var(${c}) ${Math.round(30 + Math.sqrt(v / max) * 70)}%, #15171a)` : '#15171a');
+/** circle of fifths for one area; brightness = time in that key */
+function wheel(keys, color, noun) {
+  const C = 110, max = Math.max(60, ...keys);
   const at = (i, r) => { const a = (i / 12) * Math.PI * 2 - Math.PI / 2; return [C + Math.cos(a) * r, C + Math.sin(a) * r]; };
-  const dots = FIFTHS.map((key, i) => {
-    const [x, y] = at(i, 106), [ix, iy] = at(i, 70), sv = k.songs[key], tv = k.tech[key];
-    const tip = [`${KEYS[key]}`, sv >= 10 ? `songs ${short(sv)}${k.names[key] ? ` (${k.names[key].join(', ')})` : ''}` : '', tv >= 10 ? `technique ${short(tv)}` : ''].filter(Boolean).join(' · ');
-    return `<g class="${sv >= 10 || tv >= 10 ? 'hot' : ''}"><title>${esc(tip)}</title>
-      <circle cx="${x}" cy="${y}" r="17" fill="${fill(sv, '--new-song')}" stroke="#23262c"/><text x="${x}" y="${y}">${KEYS[key]}</text>
-      <circle cx="${ix}" cy="${iy}" r="8" fill="${fill(tv, '--technique')}" stroke="#23262c"/></g>`;
+  const dots = FIFTHS.map((k, i) => {
+    const [x, y] = at(i, 88), v = keys[k], on = v >= 10;
+    return `<g class="${on ? 'hot' : ''}"><title>${KEYS[k]}${on ? ` ${short(v)}` : ''}</title><circle cx="${x}" cy="${y}" r="${on ? 12 + Math.sqrt(v / max) * 7 : 12}" fill="${on ? `color-mix(in srgb, var(${color}) ${Math.round(30 + Math.sqrt(v / max) * 70)}%, #15171a)` : '#15171a'}" stroke="#23262c"/><text x="${x}" y="${y}">${KEYS[k]}</text></g>`;
   }).join('');
-  const ns = k.songs.filter((v) => v >= 10).length, nt = k.tech.filter((v) => v >= 10).length;
-  return `<svg class="wheel" viewBox="0 0 260 260" width="260" height="260">${dots}
-    <text x="${C}" y="${C - 12}" style="font-size:13px;fill:var(--new-song);font-weight:600">${ns} song keys</text>
-    <text x="${C}" y="${C + 10}" style="font-size:13px;fill:var(--technique);font-weight:600">${nt} technique keys</text></svg>`;
+  return `<svg class="wheel" viewBox="0 0 220 220" width="220" height="220">${dots}<text x="${C}" y="${C - 8}" style="font-size:26px;fill:var(--ink);font-weight:600">${keys.filter((v) => v >= 10).length}</text><text x="${C}" y="${C + 16}">of 12 keys</text></svg>`;
 }
-function renderKeys() {
-  const el = $('#tab-keys'), k = data.keys[keySpan], m = data.keys.month;
-  const untouched = FIFTHS.filter((key) => m.songs[key] < 10 && m.tech[key] < 10).map((key) => KEYS[key]);
-  const songsOnly = FIFTHS.filter((key) => m.songs[key] >= 10 && m.tech[key] < 10).map((key) => KEYS[key]);
-  const rows = FIFTHS.filter((key) => k.songs[key] >= 10 || k.tech[key] >= 10).sort((a, b) => k.songs[b] + k.tech[b] - k.songs[a] - k.tech[a]);
-  el.innerHTML = `<div class="keys-head"><span class="seg"><button data-span="week" class="${keySpan === 'week' ? 'on' : ''}">This week</button><button data-span="month" class="${keySpan === 'month' ? 'on' : ''}">4 weeks</button></span></div>
-    <div class="tech-grid wide"><div>${wheel(k)}</div><div>
-      ${rows.length ? `<table><thead><tr><th>Key</th><th>Songs</th><th class="r">Songs</th><th class="r">Technique</th></tr></thead><tbody>${rows.map((key) => `<tr><td>${KEYS[key]}</td><td class="meta">${esc((k.names[key] || []).join(', '))}</td><td class="r num">${k.songs[key] >= 10 ? short(k.songs[key]) : ''}</td><td class="r num">${k.tech[key] >= 10 ? short(k.tech[key]) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nothing yet</div>'}
-      ${untouched.length ? `<div class="neglect"><h2>Untouched in 4 weeks</h2><span class="keys">${untouched.map((x) => `<i>${x}</i>`).join('')}</span></div>` : ''}
-      ${songsOnly.length ? `<div class="neglect"><h2>Songs, no technique (4 weeks)</h2><span class="keys">${songsOnly.map((x) => `<i class="song">${x}</i>`).join('')}</span></div>` : ''}
+/** the same top for songs, technique and noodling: keys wheel, keyboard, keys untouched in 4 weeks */
+function areaTop(area, color) {
+  const k = data.keys[keySpan][area], m = data.keys.month[area];
+  const untouched = FIFTHS.filter((x) => m.keys[x] < 10).map((x) => KEYS[x]);
+  return `<div class="area"><div>${wheel(k.keys, color)}</div><div class="area-r">
+      <div class="keys-head"><span class="seg">${[['week', 'This week'], ['month', '4 weeks']].map(([v, n]) => `<button data-span="${v}" class="${keySpan === v ? 'on' : ''}">${n}</button>`).join('')}</span></div>
+      <div class="kb">${keyboard(k.kb, color)}</div>
+      ${untouched.length && untouched.length < 12 ? `<div class="neglect"><h2>Untouched in 4 weeks</h2><span class="keys">${untouched.map((x) => `<i>${x}</i>`).join('')}</span></div>` : ''}
     </div></div>`;
-  el.querySelectorAll('[data-span]').forEach((b) => { b.onclick = () => { keySpan = b.dataset.span; renderKeys(); }; });
 }
-function keyboard(h) {
+function wireSpan(el) { el.querySelectorAll('[data-span]').forEach((b) => { b.onclick = () => { keySpan = b.dataset.span; renderTab(); }; }); }
+function renderNoodling() {
+  const el = $('#tab-noodling'), list = data.noodles;
+  el.innerHTML = areaTop('noodling', '--learning') + (list.length ? list.map((p) => {
+    const free = p.segs.filter((x) => x.cat === 'free').reduce((a, x) => a + x.seconds, 0), learn = p.segs.filter((x) => x.cat === 'learning').reduce((a, x) => a + x.seconds, 0);
+    const keyIdx = (p.segs.find((x) => (x.cat === 'free' || x.cat === 'learning') && x.key != null) || {}).key;
+    return `<div class="take" data-id="${esc(p.id)}"><button class="play" title="Listen">${PLAY}</button>
+      <div class="meta"><b>${dayName(p.start_ms)} ${clock(p.start_ms)}</b><br>${[mss(free + learn), keyIdx != null ? KEYS[keyIdx] : '', ...(p.style || [])].filter(Boolean).map(esc).join(' · ')}</div>
+      <div class="what">${free ? `<span class="tag" style="--c:var(--free)">Free play</span>` : ''}${learn ? `<span class="tag" style="--c:var(--learning)">New material</span>` : ''}</div></div>`;
+  }).join('') : '<div class="empty">No noodling this week</div>');
+  el.querySelectorAll('.take').forEach((row) => { $('.play', row).onclick = (e) => togglePlay(row.dataset.id, e.currentTarget); });
+  wireSpan(el);
+}
+function keyboard(h, color = '--red') {
   const max = Math.max(1, ...h), white = [];
   let x = 0;
   for (let i = 0; i < 88; i++) { const n = (i + 21) % 12; if (![1, 3, 6, 8, 10].includes(n)) white.push({ i, x: x++ }); }
   const w = 100 / white.length;
-  const heat = (v) => `color-mix(in srgb, var(--red) ${Math.round(Math.sqrt(v / max) * 100)}%, #1a1c20)`;
+  const heat = (v) => `color-mix(in srgb, var(${color}) ${Math.round(Math.sqrt(v / max) * 100)}%, #1a1c20)`;
   let s = white.map((k) => `<rect x="${k.x * w}%" y="0" width="${w - 0.15}%" height="46" rx="1.5" fill="${h[k.i] ? heat(h[k.i]) : '#1a1c20'}"/>`).join('');
   x = 0;
   for (let i = 0; i < 88; i++) { const n = (i + 21) % 12; if ([1, 3, 6, 8, 10].includes(n)) s += `<rect x="${(x - 0.32) * w}%" y="0" width="${w * 0.64}%" height="28" rx="1" fill="${h[i] ? heat(h[i]) : '#0b0c0e'}" stroke="#0e0f11" stroke-width=".6"/>`; else x++; }
@@ -204,9 +208,9 @@ function renderTechnique() {
   }
   const t = Object.values(drills).sort((a, b) => b.seconds - a.seconds);
   const keyRow = (keys) => `<span class="keys">${FIFTHS.map((k) => `<i class="${keys[k] ? 'on' : ''}" title="${KEYS[k]}${keys[k] ? ` ${short(keys[k])}` : ''}">${KEYS[k]}</i>`).join('')}</span>`;
-  el.innerHTML = `<div>${t.length ? `<table><thead><tr><th>Drill</th><th class="r">Time</th><th class="r">Top speed</th><th class="r">Even</th></tr></thead><tbody>${t.map((d) => `
-    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${spark((data.drills[d.type] || []).map((x) => x.nps))}${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div>
-    <div class="kb"><h2>Keyboard</h2>${keyboard(data.keyboard)}</div>`;
+  el.innerHTML = areaTop('technique', '--technique') + `<div>${t.length ? `<table><thead><tr><th>Drill</th><th class="r">Time</th><th class="r">Top speed</th><th class="r">Even</th></tr></thead><tbody>${t.map((d) => `
+    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${spark((data.drills[d.type] || []).map((x) => x.nps))}${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div>`;
+  wireSpan(el);
 }
 
 /** ["C major scale", "G major scale", "F pattern"] -> ["Major scale C G", "Pattern F"] */
@@ -308,5 +312,6 @@ document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { t
 $('#prev').onclick = () => { week = shiftWeek(week, -1); load(); };
 $('#next').onclick = () => { week = shiftWeek(week, 1); load(); };
 try { tab = localStorage.getItem('tab') || 'songs'; } catch {}
+if (!['songs', 'technique', 'noodling', 'log', 'trends'].includes(tab)) tab = 'songs';
 week = thisWeek();
 load(); status(); setInterval(status, 3000);

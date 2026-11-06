@@ -157,3 +157,9 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .neglect { margin-top: 22px; }
 .neglect .keys i { width: 26px; color: var(--mute); }
 .keys i.song { background: color-mix(in srgb, var(--new-song) 22%, var(--raise)); color: var(--ink); }
+
+.area { display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: center; margin-bottom: 26px; }
+.area .kb { margin-top: 14px; }
+.area .neglect { margin-top: 16px; }
+.take .what { display: flex; gap: 6px; }
+@media (max-width: 640px) { .area { grid-template-columns: 1fr; } }
