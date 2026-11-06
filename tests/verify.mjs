@@ -158,7 +158,7 @@ section('5. the week: goals fill from what was played, corrections, Piano Studio
   ok(w.inbox.length === 0, 'the second Leaves take was not recognised');
   ok(goal('new-standards') > 250, 'new standards bar did not fill from both takes');
   // a correction moves time, never adds it
-  const before = w.total, lickPiece = w.pieces.find((p) => p.segs.some((s) => s.cat === 'learning'));
+  const before = w.total, lickPiece = w.pieces.find((p) => p.segs.some((s) => s.cat === 'noodling'));
   st.setKind(lickPiece.id, 'technique');
   w = st.week('2026-11-02');
   ok(Math.abs(w.total - before) < 0.5 && goal('new-material') < 5, 'a correction changed the total or left the time in place');
@@ -240,6 +240,49 @@ section('7. the built-in recorder (for friends without Piano Studio)');
     const st = openStore({ root, data: path.join(root, 'practice') });
     ok(st.week('2026-11-02').total > 50, 'recorded take not read by the week');
   }
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+section('8. noodling, session goals, keep recordings off (owner 2026-11-06)');
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'practice-s8-'));
+  const save = (day, hhmmss, take) => {
+    const dir = path.join(root, 'midi', day); fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'take-' + hhmmss + '.mid'), writeSmf(take.notes));
+    fs.writeFileSync(path.join(dir, 'take-' + hhmmss + '.json'), JSON.stringify({ start_ms: new Date(day + 'T' + hhmmss.slice(0, 2) + ':' + hhmmss.slice(2, 4) + ':00').getTime() }));
+  };
+  // a few seconds of stray notes: not noodling
+  save('2026-11-03', '100000', G.playFragments({ seconds: 8, seed: 91 }));
+  // two minutes of stop-start: noodling
+  save('2026-11-03', '110000', G.playFragments({ seconds: 120, seed: 92 }));
+  const st = openStore({ root, data: path.join(root, 'practice'), defaultGoals: [{ id: 'noodling', name: 'Noodling', minutes: 60, counts: 'noodling' }, { id: 'technique', name: 'Technique', minutes: 60, counts: 'technique' }] });
+  let w = st.week('2026-11-02');
+  const nood = w.goals.find((g) => g.id === 'noodling').seconds;
+  console.log('  noodling counted ' + Math.round(nood) + ' s (the 8 s scrap is not)');
+  ok(nood > 85 && nood < 125, 'noodling in bursts with pauses not counted in full');
+  ok(!w.pieces.some((p) => p.start_ms === new Date('2026-11-03T10:00:00').getTime()), 'an 8 s scrap of noodling still shows in the log');
+  // a goal saved under an old name still counts
+  st.setGoals('2026-11-02', [{ name: 'Old', minutes: 30, counts: 'learning' }]);
+  ok(st.week('2026-11-02').goals[0].seconds > 60, 'a goal saved as "learning" no longer counts noodling');
+  // session goals fill only from what is played after the session starts
+  st.setGoals('2026-11-02', [{ id: 'technique', name: 'Technique', minutes: 60, counts: 'technique' }]);
+  const wk = st.weekStart(Date.now());
+  st.setGoals(wk, [{ id: 'technique', name: 'Technique', minutes: 60, counts: 'technique' }]);
+  st.setSession([{ goal: 'technique', minutes: 20 }]);
+  const now = new Date(), day = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const later = new Date(Date.now() + 60e3), hh = String(later.getHours()).padStart(2, '0') + String(later.getMinutes()).padStart(2, '0') + '00';
+  const scales = G.playScales(['C', 'G', 'D', 'A'], { seed: 93 });
+  save(day, hh, scales);
+  w = st.week(wk);
+  ok(w.session && w.session.items[0] && Math.abs(w.session.items[0].seconds - scales.end) < 15, 'session goal did not fill from what was played after it started (' + JSON.stringify(w.session) + ')');
+  st.setSession([]);
+  ok(!st.week(wk).session, 'ending the session did not clear it');
+  // keep recordings off: old recordings go, the week's numbers stay
+  const before = st.week('2026-11-02').total;
+  const n = st.prune(0);
+  ok(n >= 2, 'nothing was deleted');
+  ok(Math.abs(st.week('2026-11-02').total - before) < 0.5, 'stats changed after the recordings were deleted');
+  ok(!fs.existsSync(path.join(root, 'midi', '2026-11-03', 'take-110000.mid')), 'recording still on disk');
   fs.rmSync(root, { recursive: true, force: true });
 }
 

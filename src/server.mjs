@@ -93,6 +93,8 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
     catch (e) { log(`[analyse] ${e.stack || e.message}`); }
   };
   timers.push(setInterval(warmUp, 30e3)); setTimeout(warmUp, 2000);
+  const prune = () => { if (mode === 'builtin' && settings().keepRecordings === false) { const n = store.prune(7); if (n) log(`[recordings] deleted ${n} older than 7 days (keep recordings is off)`); } };
+  timers.push(setInterval(prune, 6 * 3600e3)); setTimeout(prune, 60e3);
   timers.push(setInterval(() => { if (rec.recording) rec.lastPlayed = Date.now(); }, 5000));
 
   // ---- web ----
@@ -120,7 +122,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
         if (!f.startsWith(UI) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
         return send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
       }
-      if (u.pathname === '/api/info') return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!settings().tutorialSeen });
+      if (u.pathname === '/api/info') { const st = settings(); return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!st.tutorialSeen, guideDone: !!st.guideDone, goalsSet: fs.existsSync(path.join(store.DATA, 'goals.json')), keepRecordings: st.keepRecordings !== false }); }
       if (u.pathname === '/api/status') return send(res, 200, { recorder: rec.state, nord: rec.nord, recording: rec.recording, take_seconds: rec.take_seconds, error: rec.error || '', takes: store.takes().length });
       if (u.pathname === '/api/week') {
         const w = u.searchParams.get('start');
@@ -132,6 +134,15 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
       if (req.method !== 'POST') return send(res, 404, { error: 'unknown' });
       const b = await body(req);
       if (u.pathname === '/api/seen') { fs.writeFileSync(settingsFile, JSON.stringify({ ...settings(), tutorialSeen: true })); return send(res, 200, { ok: true }); }
+      if (u.pathname === '/api/settings') {
+        const next = { ...settings() };
+        if (typeof b.keepRecordings === 'boolean' && mode === 'builtin') next.keepRecordings = b.keepRecordings;
+        if (typeof b.guideDone === 'boolean') next.guideDone = b.guideDone;
+        fs.writeFileSync(settingsFile, JSON.stringify(next));
+        if (next.keepRecordings === false) prune();
+        return send(res, 200, { ok: true });
+      }
+      if (u.pathname === '/api/session') return send(res, 200, store.setSession(b.items || []) || { cleared: true });
       if (u.pathname === '/api/name') { if (!b.piece || !String(b.name || '').trim()) return send(res, 400, { error: 'piece and name' }); return send(res, 200, store.nameSong(b.piece, b.name, b.status)); }
       if (u.pathname === '/api/cut') return send(res, 200, { ok: store.cut(String(b.take || ''), +b.t) });
       if (u.pathname === '/api/join') return send(res, 200, { ok: store.join(String(b.piece || '')) });

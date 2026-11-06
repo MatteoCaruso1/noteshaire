@@ -195,3 +195,50 @@ h2.sec + .insight { margin-top: 10px; }
 .w-foot { color: var(--faint); font-size: 13px; margin: 20px 0 18px; }
 .w-go { width: 100%; padding: 10px; font-size: 14px; }
 @media (max-width: 640px) { .head-r { grid-column: 1 / -1; justify-self: start; } }
+
+/* 2026-11-06: calm status, session goals, naming, settings, first-start hints */
+.status .st-txt { transition: color .3s; }
+.status.live .st-txt { animation: breathe 1.8s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { color: var(--mute); } 50% { color: #5fd398; } }
+.session { margin-top: 30px; }
+.session .sgoal { margin-top: 14px; }
+.bar.thin { height: 10px; }
+.sec-tools { display: flex; gap: 8px; }
+.ghost.small, .primary.small { padding: 4px 10px; font-size: 12.5px; }
+.hint-line { color: var(--faint); font-size: 13px; }
+.sform { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.sform select, .sform input { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); }
+.sform input { width: 70px; }
+.sform .unit { color: var(--faint); font-size: 13px; margin-left: -4px; }
+.chip-sub { color: var(--faint); margin-left: 4px; }
+.seg.pick button.on { color: var(--ink); background: #262a30; }
+.seg.pick button.on[data-s="new"] { color: var(--new-song); }
+.play.sm { width: 28px; height: 28px; }
+.play.sm svg { width: 10px; height: 10px; }
+table.songs td:first-child, table.songs th:first-child { width: 36px; }
+.entry { grid-template-columns: 32px 66px 50px 1fr auto; }
+details.gc { position: relative; }
+details.gc summary { list-style: none; cursor: pointer; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+details.gc summary::-webkit-details-marker { display: none; }
+.gc-list { position: absolute; z-index: 20; top: 36px; left: 0; width: 240px; max-height: 260px; overflow: auto; background: #17191d; border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.gc-list label { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; font-size: 13px; color: var(--mute); cursor: pointer; }
+.gc-list label:hover { background: var(--raise); color: var(--ink); }
+.settings { width: min(460px, 92vw); }
+.settings h2 { margin-bottom: 16px; }
+.set-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.set-row .meta { margin-top: 2px; }
+.switch { appearance: none; width: 38px; height: 22px; border-radius: 99px; background: #2a2d33; position: relative; cursor: pointer; flex: none; transition: background .2s; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); transition: transform .2s; }
+.switch:checked { background: #3fbf7f; }
+.switch:checked::after { transform: translateX(16px); }
+.edit-goals.glow { color: var(--ink); background: var(--raise); box-shadow: 0 0 0 0 rgba(240,195,90,.7); animation: glow 1.6s infinite; }
+@keyframes glow { 0% { box-shadow: 0 0 0 0 rgba(240,195,90,.6); } 70% { box-shadow: 0 0 0 10px rgba(240,195,90,0); } 100% { box-shadow: 0 0 0 0 rgba(240,195,90,0); } }
+.hint { position: absolute; z-index: 30; max-width: 280px; background: var(--gold); color: #1a1406; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.35; box-shadow: 0 10px 30px rgba(0,0,0,.45); display: flex; gap: 10px; align-items: center; }
+.hint b { font-weight: 700; }
+.hint::before { content: ''; position: absolute; top: -6px; right: 16px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--gold); }
+.hint .primary { background: #1a1406; color: var(--gold); white-space: nowrap; }
+#goalEdit h2 { margin-bottom: 14px; }
+.grow-head { color: var(--faint); font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.grow-head span { padding-left: 2px; }
+.grow-row { grid-template-columns: 1fr 92px 200px 28px; }
+.hint[hidden] { display: none; }

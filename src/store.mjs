@@ -20,9 +20,10 @@ export function weekStart(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); 
 const slug = (s) => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'song';
 
 // the categories a stretch of time can fall in
+export const NOODLE_MIN_S = 30; // a piece's noodling under this is not counted (owner 2026-11-06: "6 or 7 seconds is not noodling")
 export const CATS = {
-  technique: 'Technique', 'new-song': 'New repertoire', 'known-song': 'Known repertoire', learning: 'New material',
-  unnamed: 'Unnamed', free: 'Free play', skip: 'Not practice',
+  technique: 'Technique', 'new-song': 'New repertoire', 'known-song': 'Known songs', noodling: 'Noodling',
+  unnamed: 'Unnamed', skip: 'Not practice', stray: 'Too short to count',
 };
 
 // Matteo's (owner 2026-11-05); everyone else starts from DEFAULT_GOALS
@@ -30,17 +31,19 @@ export const OWNER_GOALS = [
   { id: 'technique', name: 'Technique', minutes: 180, counts: 'technique' },
   { id: 'new-standards', name: 'New standards', minutes: 180, counts: 'new-song' },
   { id: 'red-grand-jazz', name: 'Red Grand Jazz', minutes: 120, counts: 'recording' },
-  { id: 'new-material', name: 'New material', minutes: 60, counts: 'learning' },
+  { id: 'new-material', name: 'New material', minutes: 60, counts: 'noodling' },
 ];
 export const DEFAULT_GOALS = [
   { id: 'technique', name: 'Technique', minutes: 120, counts: 'technique' },
   { id: 'new-songs', name: 'New songs', minutes: 120, counts: 'new-song' },
-  { id: 'new-material', name: 'New material', minutes: 60, counts: 'learning' },
+  { id: 'noodling', name: 'Noodling', minutes: 60, counts: 'noodling' },
 ];
+/** older names for the noodling category (labels and goals saved before 2026-11-06) */
+const normCat = (c) => (c === 'learning' || c === 'free' ? 'noodling' : c);
 
 export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), data = process.env.PRACTICE_DATA, defaultGoals = OWNER_GOALS } = {}) {
   const DATA = data || path.join(root, 'practice');
-  const F = { songs: path.join(DATA, 'songs.json'), labels: path.join(DATA, 'labels.json'), goals: path.join(DATA, 'goals.json'), ids: path.join(DATA, 'identify.json'), cuts: path.join(DATA, 'cuts.json'), auto: path.join(DATA, 'autocuts.json') };
+  const F = { songs: path.join(DATA, 'songs.json'), labels: path.join(DATA, 'labels.json'), goals: path.join(DATA, 'goals.json'), ids: path.join(DATA, 'identify.json'), cuts: path.join(DATA, 'cuts.json'), auto: path.join(DATA, 'autocuts.json'), session: path.join(DATA, 'session.json') };
   fs.mkdirSync(path.join(DATA, 'cache'), { recursive: true });
 
   const songsDb = () => readJson(F.songs, { songs: [] });
@@ -60,11 +63,20 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
         out.push({ id: `${day}/${base}`, file: path.join(dir, day, f), start_ms: start });
       }
     }
-    return out;
+    // takes whose recording was deleted (keep recordings off): their analysis stays, so the history stays
+    const have = new Set(out.map((t) => t.id)), cdir = path.join(DATA, 'cache');
+    for (const f of fs.existsSync(cdir) ? fs.readdirSync(cdir) : []) {
+      const m = f.match(/^(\d{4}-\d\d-\d\d)_(take-\d{6})\.json$/);
+      if (!m || have.has(`${m[1]}/${m[2]}`)) continue;
+      const c = readJson(path.join(cdir, f), null);
+      if (c && c.start_ms) out.push({ id: `${m[1]}/${m[2]}`, file: null, start_ms: c.start_ms, cached: path.join(cdir, f) });
+    }
+    return out.sort((a, b) => a.start_ms - b.start_ms);
   }
 
   const notesCache = new Map();
   function takeNotes(take) {
+    if (!take.file) return null;
     const st = fs.statSync(take.file);
     const hit = notesCache.get(take.id);
     if (hit && hit.mtime === st.mtimeMs) return hit.m;
@@ -79,6 +91,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
   const cutsFor = (id) => [...(readJson(F.cuts, {})[id] || []), ...((readJson(F.auto, {})[id] || {}).cuts || [])].sort((x, y) => x - y);
   function analysis(take) {
     const cf = path.join(DATA, 'cache', `${take.id.replace('/', '_')}.json`);
+    if (!take.file) return (readJson(cf, { pieces: [] }).pieces || []);
     const st = fs.statSync(take.file);
     const c = readJson(cf, null), cuts = cutsFor(take.id), sig = cuts.join(',');
     if (c && c.version === VERSION && c.mtime === st.mtimeMs && (c.cuts || '') === sig) return c.pieces;
@@ -87,7 +100,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       const ns = m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1);
       return { ...p, id: `${take.id}@${Math.round(p.t0)}`, fp: fingerprint(ns, p.t0, p.t1) };
     });
-    writeJson(cf, { version: VERSION, mtime: st.mtimeMs, cuts: sig, pieces });
+    writeJson(cf, { version: VERSION, mtime: st.mtimeMs, cuts: sig, start_ms: take.start_ms, pieces });
     return pieces;
   }
 
@@ -128,6 +141,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     if (!noAuto && autoCuts(out, db.songs)) return allPieces(true);
     identifyAll(out, db.songs);
     inherit(out);
+    noodleRuns(out, new Map(db.songs.map((x) => [x.id, x])));
     return out;
   }
 
@@ -144,7 +158,9 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       const a = auto[p.take] || (auto[p.take] = { cuts: [], checked: {} });
       if (a.checked[p.id] === libSig) continue;
       a.checked[p.id] = libSig;
-      const take = takes().find((t) => t.id === p.take), m = takeNotes(take), ns = m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1);
+      const take = takes().find((t) => t.id === p.take), m = takeNotes(take);
+      if (!m) continue;
+      const ns = m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1);
       let best = null;
       for (const sng of lib) for (const r of sng.refs) {
         if (r.id === p.id) continue;
@@ -158,6 +174,20 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     }
     writeJson(F.auto, auto);
     return added;
+  }
+
+  /** noodling in bursts: neighbouring pieces (under a minute apart) that are noodling add up into one run */
+  function noodleRuns(pieces, songsById) {
+    const sorted = [...pieces].sort((a, b) => a.start_ms - b.start_ms);
+    let group = [], lastEnd = -Infinity;
+    const close = () => { const tot = group.reduce((a, g) => a + g.n, 0); group.forEach((g) => { g.p.noodleRun = tot; }); group = []; };
+    for (const p of sorted) {
+      const n = stretches(p, songsById, true).filter((x) => x.cat === 'noodling').reduce((a, x) => a + x.seconds, 0);
+      if (!n || p.start_ms - lastEnd > 60e3) close();
+      if (n) group.push({ p, n });
+      lastEnd = p.start_ms + (p.t1 - p.t0) * 1000;
+    }
+    close();
   }
 
   /** a short stretch right after a song, after a pause (a sip of water), is more of that song */
@@ -209,22 +239,29 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
   const musicSeconds = (p) => p.segs.filter((s) => s.kind === 'music').reduce((a, s) => a + s.t1 - s.t0, 0);
 
   /** one piece -> [{ cat, seconds, key, label, kind }] (its stretches, with corrections applied) */
-  function stretches(p, songsById) {
+  function stretches(p, songsById, raw = false) {
     const kindFix = p.label && p.label.kind;
     if (kindFix === 'skip') return [{ cat: 'skip', seconds: p.t1 - p.t0 }];
-    if (kindFix && kindFix !== 'song') return [{ cat: kindFix, seconds: p.t1 - p.t0, key: p.keyRoot, kb: p.keys88 }];
+    if (kindFix && kindFix !== 'song') return [{ cat: normCat(kindFix), seconds: p.t1 - p.t0, key: p.keyRoot, kb: p.keys88 }];
     const songCat = () => {
       const s = p.song && songsById.get(p.song);
       if (s) return s.status === 'new' ? 'new-song' : 'known-song';
-      return musicSeconds(p) >= SONG_MIN_S || kindFix === 'song' ? 'unnamed' : 'free';
+      return musicSeconds(p) >= SONG_MIN_S || kindFix === 'song' ? 'unnamed' : 'noodling';
     };
-    return p.segs.map((s) => {
+    const out = p.segs.map((s) => {
       const sec = s.t1 - s.t0;
       if (TECH.has(s.kind)) return { cat: 'technique', seconds: sec, kind: s.kind, label: s.label, keys: s.keys, runs: s.runs, kb: s.keys88 };
-      if (s.kind === 'lick' || s.kind === 'fragment') return { cat: 'learning', seconds: sec, kind: s.kind, key: s.key, kb: s.keys88 };
-      const cat = kindFix === 'song' || isMusic(p) ? songCat() : 'free';
-      return { cat, seconds: sec, kind: 'music', key: cat === 'free' ? (s.key ?? p.keyRoot) : p.keyRoot, kb: s.keys88 };
+      if (s.kind === 'lick' || s.kind === 'fragment') return { cat: 'noodling', seconds: sec, kind: s.kind, key: s.key, kb: s.keys88 };
+      const cat = kindFix === 'song' || isMusic(p) ? songCat() : 'noodling';
+      return { cat, seconds: sec, kind: 'music', key: cat === 'noodling' ? (s.key ?? p.keyRoot) : p.keyRoot, kb: s.keys88 };
     });
+    // a few seconds of noodling (a stray phrase between things) is not counted anywhere; noodling in short bursts with
+    // pauses counts as one run (noodleRun: the noodling of this piece and its neighbours less than a minute apart)
+    if (!raw) {
+      const noodle = p.noodleRun ?? out.filter((x) => x.cat === 'noodling').reduce((a, x) => a + x.seconds, 0);
+      if (noodle > 0 && noodle < NOODLE_MIN_S) out.forEach((x) => { if (x.cat === 'noodling') x.cat = 'stray'; });
+    }
+    return out;
   }
 
   // ---- goals --------------------------------------------------------------------------------------------------------
@@ -243,13 +280,36 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
   /** does this stretch of a piece count toward a goal? */
   function counts(goal, st, p) {
     const c = goal.counts || '';
-    if (st.cat === 'skip') return false;
+    if (st.cat === 'skip' || st.cat === 'stray') return false;
     if (c === 'recording') return p.recording;
     if (c === 'any') return true;
     if (c.startsWith('song:')) return p.song === c.slice(5);
     if (c.startsWith('key:')) { const k = +c.slice(4); return st.key === k || (st.keys || []).includes(k); }
     if (c.startsWith('style:')) return (p.style || []).includes(c.slice(6));
-    return c.split('|').includes(st.cat);
+    return c.split('|').map(normCat).includes(st.cat);
+  }
+
+  // ---- session goals: picked from this week's goals, filled by what is played after the session starts ----
+  const SESSION_H = 12;
+  function getSession() { const x = readJson(F.session, null); return x && Date.now() - x.started < SESSION_H * 3600e3 ? x : null; }
+  function setSession(items) {
+    const cur = getSession();
+    const list = (items || []).filter((i) => i.goal && +i.minutes > 0).map((i) => ({ goal: String(i.goal), minutes: Math.round(+i.minutes) }));
+    if (!list.length) { try { fs.unlinkSync(F.session); } catch {} return null; }
+    const x = { started: cur ? cur.started : Date.now(), items: list };
+    writeJson(F.session, x);
+    return x;
+  }
+  function sessionProgress(all, songsById, startDay) {
+    const x = getSession();
+    if (!x || weekStart(x.started) !== startDay) return null;
+    const goals = goalsFor(startDay);
+    const items = x.items.map((i) => { const g = goals.find((q) => q.id === i.goal); return g ? { ...i, name: g.name, counts: g.counts, seconds: 0 } : null; }).filter(Boolean);
+    for (const p of all) {
+      if (p.start_ms < x.started) continue;
+      for (const st of stretches(p, songsById)) for (const it of items) if (counts(it, st, p)) it.seconds += st.seconds;
+    }
+    return { started: x.started, items };
   }
 
   // ---- the week ----------------------------------------------------------------------------------------------------
@@ -260,7 +320,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const goals = goalsFor(startDay).map((g) => ({ ...g, seconds: 0 }));
     const days = {}; for (let i = 0; i < 7; i++) days[dayOf(t0 + i * 864e5 + 3600e3)] = {};
     let total = 0, offplan = 0;
-    const cats = {}, keyboard = new Array(88).fill(0), songMin = {};
+    const offCats = {}, cats = {}, keyboard = new Array(88).fill(0), songMin = {};
     const tech = {};
     const pieces = [];
     for (const p of all) {
@@ -268,13 +328,13 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       const day = dayOf(p.start_ms), st = stretches(p, songsById);
       let pieceSec = 0, offSec = 0;
       for (const s of st) {
-        if (s.cat === 'skip') continue;
+        if (s.cat === 'skip' || s.cat === 'stray') continue;
         pieceSec += s.seconds;
         cats[s.cat] = (cats[s.cat] || 0) + s.seconds;
         if (days[day]) days[day][s.cat] = (days[day][s.cat] || 0) + s.seconds;
         let hit = false;
         for (const g of goals) if (counts(g, s, p)) { g.seconds += s.seconds; hit = true; }
-        if (!hit) offSec += s.seconds;
+        if (!hit) { offSec += s.seconds; offCats[s.cat] = (offCats[s.cat] || 0) + s.seconds; }
         if (s.cat === 'technique') for (const r of s.runs || []) {
           const k = tech[r.label] || (tech[r.label] = { label: r.label, key: r.key, kind: r.kind, seconds: 0, nps: [], even: [] });
           k.seconds += r.t1 - r.t0; k.nps.push(r.nps); k.even.push(r.even);
@@ -290,15 +350,16 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       const mine = all.filter((p) => p.song === s.id);
       const last = mine.length ? Math.max(...mine.map((p) => p.start_ms)) : null;
       const keyVotes = {}; mine.forEach((p) => { if (p.key) keyVotes[p.key] = (keyVotes[p.key] || 0) + (p.t1 - p.t0); });
-      return { id: s.id, name: s.name, status: s.status, weekSeconds: songMin[s.id] || 0, plays: mine.filter((p) => p.t1 - p.t0 >= SONG_MIN_S).length,
+      const lastPiece = mine.filter((p) => p.t1 - p.t0 >= 20).sort((a, b) => b.start_ms - a.start_ms)[0];
+      return { id: s.id, name: s.name, status: s.status, lastPiece: lastPiece ? lastPiece.id : null, weekSeconds: songMin[s.id] || 0, plays: mine.filter((p) => p.t1 - p.t0 >= SONG_MIN_S).length,
         allSeconds: mine.reduce((a, p) => a + p.t1 - p.t0, 0), last, key: Object.entries(keyVotes).sort((a, b) => b[1] - a[1])[0]?.[0] || null };
     }).sort((a, b) => b.weekSeconds - a.weekSeconds || (b.last || 0) - (a.last || 0));
     const inbox = all.filter((p) => !p.song && !(p.label && p.label.kind) && isMusic(p) && musicSeconds(p) >= SONG_MIN_S)
       .sort((a, b) => b.start_ms - a.start_ms).slice(0, 30).map((p) => slim(p, stretches(p, songsById), songsById));
     const techList = Object.values(tech).map((k) => ({ ...k, nps: +(k.nps.reduce((a, b) => a + b, 0) / k.nps.length).toFixed(1), even: +(k.even.reduce((a, b) => a + b, 0) / k.even.length).toFixed(2) })).sort((a, b) => b.seconds - a.seconds);
     const keys = { week: keyTally(all, t0, t1, songsById), month: keyTally(all, t1 - 28 * 864e5, t1, songsById) };
-    const noodles = pieces.filter((p) => p.segs.some((x) => x.cat === 'free' || x.cat === 'learning'));
-    return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, noodles, streak: streak(all), drills: drillHistory(all) };
+    const noodles = pieces.filter((p) => p.segs.some((x) => x.cat === 'noodling'));
+    return { week: startDay, total, offplan, offCats, session: sessionProgress(all, songsById, startDay), goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, noodles, streak: streak(all), drills: drillHistory(all) };
   }
 
   function slim(p, st, songsById) {
@@ -310,7 +371,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
 
   /** each area (songs, technique, noodling): time in each key (by tonic, 0 = C) and where on the keyboard the hands were.
    *  A named song counts in its usual key (the key of most of its takes), so one odd reading does not move it. */
-  const AREA = { 'new-song': 'songs', 'known-song': 'songs', unnamed: 'songs', technique: 'technique', free: 'noodling', learning: 'noodling' };
+  const AREA = { 'new-song': 'songs', 'known-song': 'songs', unnamed: 'songs', technique: 'technique', noodling: 'noodling' };
   function keyTally(all, from, to, songsById) {
     const songKey = {};
     for (const p of all) if (p.song && p.keyRoot != null) { const v = (songKey[p.song] ||= new Array(12).fill(0)); v[p.keyRoot] += p.t1 - p.t0; }
@@ -405,6 +466,19 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     writeJson(F.songs, db);
     return s;
   }
+  /** keep recordings off: delete recordings older than `days` (their analysis stays, so the stats stay). Makes sure each
+   *  take is analysed first. Returns how many takes were removed. */
+  function prune(days) {
+    let n = 0;
+    for (const t of takes()) {
+      if (!t.file || Date.now() - t.start_ms < days * 864e5) continue;
+      try { analysis(t); } catch { continue; }
+      for (const ext of ['.mid', '.json']) try { fs.unlinkSync(t.file.replace(/\.mid$/, ext)); } catch {}
+      n++;
+    }
+    return n;
+  }
+
   /** his scissors: cut a take at t seconds (take time). The piece that was cut loses its name, so each part is named anew. */
   function cut(takeId, t) {
     const c = readJson(F.cuts, {}), lab = labels();
@@ -433,10 +507,11 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const p = analysis(take).find((x) => x.id === pieceId);
     if (!p) return null;
     const m = takeNotes(take);
+    if (!m) return null;
     return m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1).map((n) => [+(n.t - p.t0).toFixed(3), n.note, +n.dur.toFixed(3), n.vel]);
   }
 
-  return { root, DATA, takes, allPieces, week, trends, cut, join, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
+  return { root, DATA, takes, allPieces, week, trends, cut, join, prune, getSession, setSession, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
 }
 
 export { MAJOR };

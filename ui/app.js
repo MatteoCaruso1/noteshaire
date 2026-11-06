@@ -6,9 +6,10 @@ const api = async (p, b) => { const r = await fetch(p, b ? { method: 'POST', hea
 const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const CAT = {
   technique: ['Technique', '--technique'], 'new-song': ['New repertoire', '--new-song'], 'known-song': ['Known songs', '--known-song'],
-  learning: ['New material', '--learning'], unnamed: ['Unnamed', '--unnamed'], free: ['Free play', '--free'], recording: ['Red Grand Jazz', '--recording'], skip: ['Not practice', '--free'],
+  noodling: ['Noodling', '--learning'], unnamed: ['Unnamed', '--unnamed'], recording: ['Red Grand Jazz', '--recording'], skip: ['Not practice', '--free'], stray: ['Too short', '--free'],
+  learning: ['Noodling', '--learning'], free: ['Noodling', '--learning'],
 };
-const COUNTS = [['technique', 'Technique'], ['new-song', 'New repertoire'], ['known-song', 'Known songs'], ['learning', 'New material'], ['recording', 'Filmed for Red Grand Jazz'], ['any', 'Any playing'],
+const COUNTS = [['technique', 'Technique'], ['new-song', 'New repertoire'], ['known-song', 'Known songs'], ['noodling', 'Noodling'], ['recording', 'Filmed for Red Grand Jazz'], ['any', 'Any playing'],
   ...KEYS.map((k, i) => [`key:${i}`, `In ${k}`]), ['style:Stride', 'Stride'], ['style:Ballad', 'Ballads'], ['style:Up-tempo', 'Up-tempo'], ['style:Walking bass', 'Walking bass']];
 const colorOf = (counts) => { const c = (counts || '').split('|')[0]; return CAT[c] ? CAT[c][1] : '--any'; };
 
@@ -33,7 +34,7 @@ function render() {
   const fmtD = (d, m) => d.toLocaleDateString(undefined, m ? { month: 'short', day: 'numeric' } : { day: 'numeric' });
   $('#weekLabel').textContent = s.getMonth() === e.getMonth() ? `${fmtD(s, 1)} – ${fmtD(e)}` : `${fmtD(s, 1)} – ${fmtD(e, 1)}`;
   $('#next').disabled = data.week >= thisWeek();
-  renderGoals(); renderSummary(); renderDays(); renderInbox();
+  renderGoals(); renderSession(); renderSummary(); renderDays(); renderInbox();
   $('#songNames').innerHTML = data.songs.map((x) => `<option value="${esc(x.name)}">`).join('');
   renderTab();
 }
@@ -55,6 +56,42 @@ function renderGoals() {
   }).join('');
 }
 
+/** session goals: picked from this week's goals, up to what is left of each; they fill from what is played after the start */
+let addingSession = false;
+function renderSession() {
+  const el = $('#session'), cur = data.week === thisWeek();
+  el.hidden = !cur;
+  if (!cur) return;
+  const left = (g) => Math.max(0, Math.round(g.minutes - g.seconds / 60));
+  const items = data.session ? data.session.items : [];
+  const open = data.goals.filter((g) => left(g) > 0 && !items.some((i) => i.goal === g.id));
+  const bars = items.map((i) => {
+    const goal = i.minutes * 60, pct = goal ? i.seconds / goal : 0;
+    return `<div class="goal sgoal ${pct >= 1 ? 'done' : ''}" style="--c:var(${colorOf(i.counts)})"><div class="goal-head"><span class="goal-name">${esc(i.name)}</span>
+      <span class="goal-val num"><b>${hm(i.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
+      <div class="bar thin"><div class="fill" style="width:${Math.min(1, pct) * 100}%"></div></div></div>`;
+  }).join('');
+  const form = addingSession && open.length ? `<div class="sform"><select class="sg">${open.map((g) => `<option value="${esc(g.id)}" data-left="${left(g)}">${esc(g.name)} · ${left(g)} min left</option>`).join('')}</select>
+      <input class="sm num" type="number" min="5" step="5"><span class="unit">min</span><button class="primary sadd">Add</button><button class="ghost scancel">Cancel</button></div>` : '';
+  el.innerHTML = `<div class="sec-head"><h2>Session goals</h2><span class="sec-tools">${items.length ? '<button class="ghost small send">End session</button>' : ''}${open.length && !addingSession ? '<button class="ghost small snew">+ Add</button>' : ''}</span></div>
+    ${bars}${form}${!items.length && !addingSession ? '<div class="hint-line">Pick a weekly goal to focus on right now.</div>' : ''}`;
+  const snew = $('.snew', el); if (snew) snew.onclick = () => { addingSession = true; renderSession(); };
+  const send = $('.send', el); if (send) send.onclick = async () => { await api('/api/session', { items: [] }); load(); };
+  const sg = $('.sg', el), sm = $('.sm', el);
+  if (sg) {
+    const setMax = () => { const mx = +sg.selectedOptions[0].dataset.left; sm.max = mx; sm.value = Math.min(30, mx); };
+    sg.onchange = setMax; setMax(); sm.focus();
+    const add = async () => {
+      const mx = +sg.selectedOptions[0].dataset.left, m = Math.min(mx, Math.max(1, Math.round(+sm.value || 0)));
+      addingSession = false;
+      await api('/api/session', { items: [...items.map((i) => ({ goal: i.goal, minutes: i.minutes })), { goal: sg.value, minutes: m }] });
+      load();
+    };
+    $('.sadd', el).onclick = add; sm.onkeydown = (e) => { if (e.key === 'Enter') add(); };
+    $('.scancel', el).onclick = () => { addingSession = false; renderSession(); };
+  }
+}
+
 function renderSummary() {
   const c = data.cats, chips = [`<span class="chip">Played <b class="num">${hm(data.total)}</b></span>`];
   if (data.streak >= 2) chips.push(`<span class="chip">${data.streak} days in a row</span>`);
@@ -68,15 +105,17 @@ function renderSummary() {
     insight = parts.join('<span class="sep">·</span>');
   }
   $('#insight').innerHTML = insight;
-  if (data.offplan > 0) chips.push(`<span class="chip ${data.total && data.offplan / data.total > 0.3 ? 'warn' : ''}">Outside goals <b class="num">${hm(data.offplan)}</b></span>`);
-  for (const k of ['known-song', 'free', 'unnamed']) if (c[k] > 30) chips.push(`<span class="chip" style="--c:var(${CAT[k][1]})"><i></i>${CAT[k][0]} <b class="num">${hm(c[k])}</b></span>`);
+  // time that fills none of the goals, by what it was (unnamed songs count once they are named)
+  const off = Object.entries(data.offCats || {}).filter(([, v]) => v >= 30).sort((a, b) => b[1] - a[1]);
+  if (off.length) chips.push(`<span class="chip ${data.total && data.offplan / data.total > 0.3 ? 'warn' : ''}">Not in any goal <b class="num">${hm(data.offplan)}</b>
+    <span class="chip-sub">${off.map(([k, v]) => `${CAT[k] ? CAT[k][0] : k} ${hm(v)}${k === 'unnamed' ? ' (name them to count)' : ''}`).join(' · ')}</span></span>`);
   $('#summary').innerHTML = chips.join('');
 }
 
 function renderDays() {
   const days = Object.entries(data.days), tot = (o) => Object.entries(o).filter(([k]) => k !== 'skip').reduce((a, [, v]) => a + v, 0);
   const max = Math.max(900, ...days.map(([, o]) => tot(o)));
-  const today = ymd(new Date()), order = ['technique', 'new-song', 'learning', 'known-song', 'unnamed', 'free'];
+  const today = ymd(new Date()), order = ['technique', 'new-song', 'noodling', 'known-song', 'unnamed'];
   $('#days').innerHTML = days.map(([d, o]) => {
     const t = tot(o);
     const segs = order.filter((k) => o[k]).map((k) => `<span title="${CAT[k][0]} ${short(o[k])}" style="--c:var(${CAT[k][1]});height:${(o[k] / max) * 100}%"></span>`).join('');
@@ -97,16 +136,24 @@ function renderInbox() {
       <button class="play" title="Listen">${PLAY}</button>
       <div class="meta"><b>${p.guess ? `${esc(p.guess)}?` : p.throughKeys ? 'Through the keys?' : 'Song'}</b><br>${pieceMeta(p)}</div>
       <div class="name-form">
-        <input placeholder="Song" list="songNames" value="${esc(p.guess || '')}">
-        <span class="seg"><button class="new" data-s="new" title="New to my repertoire">New</button><button data-s="known" title="I know it">Known</button></span>
-        ${p.throughKeys ? '<button class="primary tech">Technique</button>' : ''}
-        <select class="mini" aria-label="Not a song"><option value="">Not a song</option><option value="free">Free play</option><option value="technique">Technique</option><option value="learning">New material</option><option value="skip">Not practice</option></select>
+        <input placeholder="Song name" list="songNames" value="${esc(p.guess || '')}">
+        <span class="seg pick"><button data-s="new" class="on" title="New to my repertoire">New</button><button data-s="known" title="I already know it">Known</button></span>
+        <button class="primary save">Save</button>
+        ${p.throughKeys ? '<button class="ghost tech">Technique</button>' : ''}
+        <select class="mini" aria-label="Not a song"><option value="">Not a song</option><option value="noodling">Noodling</option><option value="technique">Technique</option><option value="skip">Not practice</option></select>
       </div></div>`).join('');
   box.querySelectorAll('.take').forEach((row) => {
     const id = row.dataset.id, inp = $('input', row);
     $('.play', row).onclick = (e) => togglePlay(id, e.currentTarget);
-    row.querySelectorAll('.seg button').forEach((b) => { b.onclick = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: b.dataset.s }); load(); }; });
-    inp.onkeydown = (e) => { if (e.key === 'Enter' && inp.value.trim()) { const known = data.songs.find((x) => x.name.toLowerCase() === inp.value.trim().toLowerCase()); api('/api/name', { piece: id, name: inp.value.trim(), status: known ? known.status : 'new' }).then(load); } };
+    // New / Known is a choice (a song already in the list takes its status); Save (or Enter) names it
+    const pick = (st) => row.querySelectorAll('.pick button').forEach((b) => b.classList.toggle('on', b.dataset.s === st));
+    row.querySelectorAll('.pick button').forEach((b) => { b.onclick = () => pick(b.dataset.s); });
+    const match = () => data.songs.find((x) => x.name.toLowerCase() === inp.value.trim().toLowerCase());
+    inp.oninput = () => { const m = match(); if (m) pick(m.status); };
+    if (match()) pick(match().status);
+    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: $('.pick .on', row).dataset.s }); load(); };
+    $('.save', row).onclick = save;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
     const tb = $('.tech', row); if (tb) tb.onclick = async () => { await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
     $('select', row).onchange = async (e) => { if (e.target.value) { await api('/api/kind', { piece: id, kind: e.target.value }); load(); } };
   });
@@ -127,12 +174,13 @@ function renderSongs() {
   const el = $('#tab-songs');
   if (!data.songs.length) { el.innerHTML = areaTop('songs', '--new-song') + '<div class="empty">No songs yet</div>'; wireSpan(el); return; }
   const max = Math.max(60, ...data.songs.map((s) => s.weekSeconds));
-  el.innerHTML = areaTop('songs', '--new-song') + `<table><thead><tr><th>Song</th><th></th><th>This week</th><th class="r">Plays</th><th class="r">Key</th><th class="r">Last</th></tr></thead><tbody>${data.songs.map((s) => `
-    <tr><td>${esc(s.name)}</td>
+  el.innerHTML = areaTop('songs', '--new-song') + `<table class="songs"><thead><tr><th></th><th>Song</th><th></th><th>This week</th><th class="r">Plays</th><th class="r">Key</th><th class="r">Last</th></tr></thead><tbody>${data.songs.map((s) => `
+    <tr><td>${s.lastPiece ? `<button class="play sm" data-id="${esc(s.lastPiece)}" title="Listen to the latest take">${PLAY}</button>` : ''}</td><td>${esc(s.name)}</td>
       <td><button class="status-btn ${s.status === 'new' ? 'new' : ''}" data-id="${esc(s.id)}" data-s="${esc(s.status)}">${s.status === 'new' ? 'New' : 'Known'}</button></td>
       <td class="num"><span class="mbar" style="width:${Math.round((s.weekSeconds / max) * 120)}px;--c:var(${s.status === 'new' ? '--new-song' : '--known-song'})"></span>${s.weekSeconds ? short(s.weekSeconds) : ''}</td>
       <td class="r num">${s.plays}</td><td class="r">${esc(s.key || '')}</td><td class="r">${ago(s.last)}</td></tr>`).join('')}</tbody></table>`;
   wireSpan(el);
+  el.querySelectorAll('.play[data-id]').forEach((b) => { b.onclick = () => togglePlay(b.dataset.id, b); });
   el.querySelectorAll('.status-btn').forEach((b) => { b.onclick = async () => { await api('/api/song', { id: b.dataset.id, status: b.dataset.s === 'new' ? 'known' : 'new' }); load(); }; });
 }
 
@@ -162,11 +210,10 @@ function wireSpan(el) { el.querySelectorAll('[data-span]').forEach((b) => { b.on
 function renderNoodling() {
   const el = $('#tab-noodling'), list = data.noodles;
   el.innerHTML = areaTop('noodling', '--learning') + (list.length ? list.map((p) => {
-    const free = p.segs.filter((x) => x.cat === 'free').reduce((a, x) => a + x.seconds, 0), learn = p.segs.filter((x) => x.cat === 'learning').reduce((a, x) => a + x.seconds, 0);
-    const keyIdx = (p.segs.find((x) => (x.cat === 'free' || x.cat === 'learning') && x.key != null) || {}).key;
+    const secs = p.segs.filter((x) => x.cat === 'noodling').reduce((a, x) => a + x.seconds, 0);
+    const keyIdx = (p.segs.find((x) => x.cat === 'noodling' && x.key != null) || {}).key;
     return `<div class="take" data-id="${esc(p.id)}"><button class="play" title="Listen">${PLAY}</button>
-      <div class="meta"><b>${dayName(p.start_ms)} ${clock(p.start_ms)}</b><br>${[mss(free + learn), keyIdx != null ? KEYS[keyIdx] : '', ...(p.style || [])].filter(Boolean).map(esc).join(' · ')}</div>
-      <div class="what">${free ? `<span class="tag" style="--c:var(--free)">Free play</span>` : ''}${learn ? `<span class="tag" style="--c:var(--learning)">New material</span>` : ''}</div></div>`;
+      <div class="meta"><b>${dayName(p.start_ms)} ${clock(p.start_ms)}</b><br>${[mss(secs), keyIdx != null ? KEYS[keyIdx] : '', ...(p.style || [])].filter(Boolean).map(esc).join(' · ')}</div><div></div></div>`;
   }).join('') : '<div class="empty">No noodling this week</div>');
   el.querySelectorAll('.take').forEach((row) => { $('.play', row).onclick = (e) => togglePlay(row.dataset.id, e.currentTarget); });
   wireSpan(el);
@@ -192,7 +239,7 @@ async function renderTrends() {
   const el = $('#tab-trends');
   el.innerHTML = '<div class="empty">…</div>';
   const t = await api('/api/trends');
-  const max = Math.max(1800, ...t.map((w) => w.total)), order = ['technique', 'new-song', 'learning', 'known-song', 'unnamed', 'free'];
+  const max = Math.max(1800, ...t.map((w) => w.total)), order = ['technique', 'new-song', 'noodling', 'known-song', 'unnamed'];
   const label = (w) => new Date(`${w}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const bars = t.map((w) => `<div class="wk ${w.week === data.week ? 'cur' : ''}" title="${label(w.week)}: ${short(w.total)}"><div class="stack">${order.filter((k) => w.cats[k]).map((k) => `<span style="--c:var(${CAT[k][1]});height:${(w.cats[k] / max) * 100}%"></span>`).join('')}</div><div class="lbl">${label(w.week)}</div><div class="min num">${w.total >= 60 ? short(w.total) : ''}</div></div>`).join('');
   const names = [...new Set(t.flatMap((w) => w.goals.map((g) => g.name)))];
@@ -239,7 +286,7 @@ function openCutter(row) {
   $('.cancel', box).onclick = () => { stopPlay(); box.remove(); };
   $('.go', box).onclick = async () => { stopPlay(); await api('/api/cut', { take: p.take, t: p.t0 + at }); load(); };
 }
-const KIND_OPTS = [['', 'Auto'], ['song', 'Song'], ['technique', 'Technique'], ['learning', 'New material'], ['free', 'Free play'], ['skip', 'Not practice']];
+const KIND_OPTS = [['', 'Auto'], ['song', 'Song'], ['technique', 'Technique'], ['noodling', 'Noodling'], ['skip', 'Not practice']];
 function renderLog() {
   const el = $('#tab-log');
   if (!data.pieces.length) { el.innerHTML = '<div class="empty">Nothing played this week</div>'; return; }
@@ -264,11 +311,12 @@ function renderLog() {
     if (p.recording) tags.push('<span class="tag" style="--c:var(--recording)">Filmed</span>');
     const extra = [...labels.slice(0, 3), p.key && !labels.length ? p.key : '', ...(p.style || [])].filter(Boolean).map((x) => `<span class="tag dim">${esc(x)}</span>`);
     const cur = p.label && p.label.kind ? p.label.kind : '';
-    return `<div class="entry" data-ids="${esc(p.ids.join(' '))}"><span class="when num">${clock(p.start_ms)}</span><span class="num">${mss(p.played)}</span>
+    return `<div class="entry" data-ids="${esc(p.ids.join(' '))}"><button class="play sm" title="Listen">${PLAY}</button><span class="when num">${clock(p.start_ms)}</span><span class="num">${mss(p.played)}</span>
       <span class="what">${tags.join('')}${extra.join('')}</span>
       <span class="row-tools">${p.ids.length === 1 && p.seconds >= 20 ? '<button class="icon cut" title="Cut in two">✂</button>' : ''}${p.joinable ? '<button class="icon join" title="Join with the piece before">Join</button>' : ''}
       <select class="mini" aria-label="Fix">${KIND_OPTS.map(([v, n]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></span></div>`;
   }).join('')}</div>`).join('');
+  el.querySelectorAll('.entry .play').forEach((b) => { b.onclick = () => togglePlay(b.closest('.entry').dataset.ids.split(' ')[0], b); });
   el.querySelectorAll('.entry .cut').forEach((b) => { b.onclick = () => openCutter(b.closest('.entry')); });
   el.querySelectorAll('.entry .join').forEach((b) => { b.onclick = async () => { await api('/api/join', { piece: b.closest('.entry').dataset.ids }); load(); }; });
   el.querySelectorAll('.entry select').forEach((s) => { s.onchange = async () => { for (const id of s.closest('.entry').dataset.ids.split(' ')) await api('/api/kind', { piece: id, kind: s.value || null }); load(); }; });
@@ -278,22 +326,33 @@ function renderLog() {
 function goalRow(g) {
   const counts = COUNTS.filter(([v]) => v !== 'recording' || (info && info.mode === 'piano-studio') || g.counts === 'recording');
   return `<div class="grow-row"><input class="gn" value="${esc(g.name)}" placeholder="Goal"><input class="gh num" type="number" min="0" step="0.25" value="${+(g.minutes / 60).toFixed(2)}" title="Hours">
-    <select class="gc">${counts.map(([v, n]) => `<option value="${v}" ${v === g.counts ? 'selected' : ''}>${n}</option>`).join('')}${data.songs.map((s) => `<option value="song:${esc(s.id)}" ${`song:${s.id}` === g.counts ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    ${countsPicker(g.counts, counts)}
     <button type="button" class="x" title="Remove">×</button></div>`;
+}
+/** what a goal counts: tick one or more (Known songs + Noodling, ...) */
+function countsPicker(value, counts) {
+  const sel = new Set(String(value || '').split('|').map((c) => (c === 'learning' || c === 'free' ? 'noodling' : c)));
+  const all = [...counts, ...data.songs.map((x) => [`song:${x.id}`, x.name])];
+  const label = all.filter(([v]) => sel.has(v)).map(([, n]) => n).join(' + ') || 'Choose';
+  return `<details class="gc"><summary>${esc(label)}</summary><div class="gc-list">${all.map(([v, n]) => `<label><input type="checkbox" value="${esc(v)}" ${sel.has(v) ? 'checked' : ''}> ${esc(n)}</label>`).join('')}</div></details>`;
 }
 function openGoals() {
   const rows = $('#goalRows');
   rows.innerHTML = data.goals.map(goalRow).join('');
   const wire = () => rows.querySelectorAll('.x').forEach((b) => { b.onclick = () => b.parentElement.remove(); });
   wire();
+  rows.addEventListener('change', (e) => { const d = e.target.closest('details'); if (d) { const n = [...d.querySelectorAll('input:checked')].map((i) => i.parentElement.textContent.trim()); d.querySelector('summary').textContent = n.join(' + ') || 'Choose'; } });
   $('#addGoal').onclick = () => { rows.insertAdjacentHTML('beforeend', goalRow({ name: '', minutes: 60, counts: 'technique' })); wire(); };
+  document.querySelectorAll('.hint').forEach((x) => { x.hidden = true; });
   $('#goalEdit').showModal();
 }
 $('#goalEdit').addEventListener('close', async () => {
+  document.querySelectorAll('.hint').forEach((x) => { x.hidden = false; });
   if ($('#goalEdit').returnValue !== 'save') return;
-  const goals = [...document.querySelectorAll('#goalRows .grow-row')].map((r) => ({ name: $('.gn', r).value.trim(), minutes: Math.round(+$('.gh', r).value * 60), counts: $('.gc', r).value })).filter((g) => g.name && g.minutes > 0);
+  const goals = [...document.querySelectorAll('#goalRows .grow-row')].map((r) => ({ name: $('.gn', r).value.trim(), minutes: Math.round(+$('.gh', r).value * 60), counts: [...r.querySelectorAll('.gc input:checked')].map((i) => i.value).join('|') })).filter((g) => g.name && g.minutes > 0 && g.counts);
   await api('/api/goals', { week: data.week, goals });
-  load();
+  await load();
+  guideStep2();
 });
 
 // ---- listening to a take (a plain built-in piano tone, enough to recognise the tune) ----
@@ -336,13 +395,13 @@ async function status() {
     const s = await api('/api/status');
     let dot = '', txt = '';
     const kb = (s.nord || '').split(',')[0].replace(/\s*(MIDI|USB)\s*(\d+)?$/i, '').trim();
-    if (s.recording) { dot = 'rec'; txt = `Recording ${mss(s.take_seconds)}`; }
-    else if (s.nord) { dot = 'ok'; txt = kb.length > 22 ? `${kb.slice(0, 21)}…` : kb || 'Keyboard'; }
+    if (s.nord) { dot = 'ok'; txt = `${kb.length > 22 ? `${kb.slice(0, 21)}…` : kb || 'Keyboard'} connected`; }
     else if (s.recorder === 'on' && s.error) { dot = 'bad'; txt = 'Keyboard busy'; }
-    else if (s.recorder === 'on') { dot = ''; txt = 'No keyboard'; }
+    else if (s.recorder === 'on') { dot = ''; txt = 'No keyboard connected'; }
     else if (s.recorder === 'starting' || s.recorder === 'checking') { dot = 'bad'; txt = 'Starting'; }
     else { dot = 'bad'; txt = 'Recorder off'; }
-    $('#status').innerHTML = `<span class="dot ${dot}"></span>${esc(txt)}`;
+    $('#status').innerHTML = `<span class="dot ${dot}"></span><span class="st-txt">${esc(txt)}</span>`;
+    $('#status').classList.toggle('live', !!s.recording);
     $('#status').title = s.error || s.nord || '';
     if (lastTakes >= 0 && s.takes !== lastTakes && week === thisWeek() && !document.activeElement.matches('input,select')) load();
     lastTakes = s.takes;
@@ -359,8 +418,48 @@ let info = null;
 async function welcome() {
   info = await api('/api/info');
   if (!info.tutorialSeen) $('#welcome').showModal();
+  else if (!info.guideDone) guideStep1();
 }
-$('#welcome').addEventListener('close', () => api('/api/seen', {}));
+$('#welcome').addEventListener('close', async () => { const first = !info.tutorialSeen; info.tutorialSeen = true; await api('/api/seen', {}); if (first || !info.guideDone) guideStep1(); });
+
+// first start: 1) the Weekly goals pencil glows with a hint, 2) after saving, a hint at the keyboard status, then done
+function hint(anchor, text, btn) {
+  document.querySelectorAll('.hint').forEach((h) => h.remove());
+  const r = anchor.getBoundingClientRect();
+  const h = document.createElement('div');
+  h.className = 'hint'; h.innerHTML = `<span>${text}</span>${btn ? `<button class="primary small">${btn}</button>` : ''}`;
+  document.body.appendChild(h);
+  const w = h.offsetWidth;
+  h.style.top = `${r.bottom + window.scrollY + 10}px`;
+  h.style.left = `${Math.max(12, Math.min(window.innerWidth - w - 12, r.right - w + 14))}px`;
+  return h;
+}
+function guideStep1() {
+  if (info.guideDone) return;
+  if (info.goalsSet) { $('#editGoals').classList.add('glow'); return guideStep2(); } // goals already set: on to playing
+  $('#editGoals').classList.add('glow');
+  hint($('#editGoals'), '<b>Start here.</b> Set what you want to practise this week.');
+}
+function guideStep2() {
+  if (info.guideDone || !$('#editGoals').classList.contains('glow')) return;
+  $('#editGoals').classList.remove('glow');
+  const h = hint($('#status'), '<b>Now just play.</b> Plug in your keyboard: the bars fill as you go.', 'Got it');
+  h.querySelector('button').onclick = async () => { h.remove(); info.guideDone = true; await api('/api/settings', { guideDone: true }); };
+}
+window.addEventListener('resize', () => document.querySelectorAll('.hint').forEach((h) => h.remove()));
+
+function openSettings() {
+  const own = info.mode === 'piano-studio';
+  $('#setBody').innerHTML = own
+    ? '<div class="set-row"><div><b>Keep recordings</b><div class="meta">Always on here: Piano Studio uses them for your videos.</div></div></div>'
+    : `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.</div></div>
+       <input type="checkbox" id="keepRec" class="switch" ${info.keepRecordings ? 'checked' : ''}></label>`;
+  const k = $('#keepRec');
+  if (k) k.onchange = async () => { info.keepRecordings = k.checked; await api('/api/settings', { keepRecordings: k.checked }); };
+  $('#settings').showModal();
+}
+$('#gear').onclick = () => { if (info) openSettings(); };
+$('#replayTour').onclick = async () => { $('#settings').close(); info.guideDone = false; await api('/api/settings', { guideDone: false }); $('#welcome').showModal(); };
 $('#help').onclick = () => $('#welcome').showModal();
 week = thisWeek();
 welcome();

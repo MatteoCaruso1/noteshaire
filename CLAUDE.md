@@ -64,3 +64,14 @@ GitHub Pages: one button, Mac or Windows picked for them; files NoteshAIre-Mac.d
 Mac signing (Developer ID Application, team RAPMF3U34U, valid to 2027-12-06): key, certificate and the secret values are
 in `C:\Users\matte\Documents\NoteshAIre signing\` (never in the repo). The Mac build signs and notarizes once the five repo
 secrets are set; until then it builds unsigned. GitHub's Mac runners sometimes have no capacity: re-push the tag.
+
+## Owner notes 2026-11-06 (after using it)
+Stay a desktop app (a web page can only hear the keyboard while the tab is open; Safari has no Web MIDI); updates reach
+installed copies by themselves. One Noodling category (licks, stop-start, free play); noodling runs under 30 s are not
+counted (NOODLE_MIN_S, bursts under a minute apart add up). Goals can count several kinds ("Known songs + Noodling");
+his "Playing around" = known-song|noodling. Stats name only time in no goal ("Not in any goal", unnamed: "name them to
+count"). Status: "<keyboard> connected", the text breathes green while notes come in (no red "Recording"). Weekly goals +
+session goals (picked from weekly goals, capped at what is left, filled from play after the session starts, 12 h). Save
+button when naming; play buttons in Log and Songs; Settings: keep recordings (friends; off = deleted after 7 days, stats
+stay; always on with Piano Studio). First start: welcome -> glowing Weekly goals pencil "Start here" -> labelled editor ->
+"Now just play" at the status.
