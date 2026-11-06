@@ -56,6 +56,8 @@ jobs:
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
-      - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+      - run: |
+          # GitHub's API sometimes answers 502 for a moment: try a few times
+          for i in 1 2 3 4 5; do gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest && exit 0; sleep $((i * 15)); done; exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
