@@ -124,9 +124,11 @@ function renderDays() {
 }
 
 const PLAY = '<svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z"/></svg>', STOP = '<svg viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8"/></svg>';
+const styleOf = (p) => (p.style || []).filter((t) => !info || info.instrument === 'piano' || !['Stride', 'Walking bass'].includes(t));
 function pieceMeta(p) {
-  return [`${dayName(p.start_ms)} ${clock(p.start_ms)}`, mss(p.seconds), p.key, ...(p.style || [])].filter(Boolean).map(esc).join(' · ');
+  return [`${dayName(p.start_ms)} ${clock(p.start_ms)}`, mss(p.seconds), p.key, ...styleOf(p)].filter(Boolean).map(esc).join(' · ');
 }
+const drafts = {}; // piece id -> { name, status } typed but not saved yet
 function renderInbox() {
   const box = $('#inbox');
   if (!data.inbox.length) { box.hidden = true; return; }
@@ -136,8 +138,8 @@ function renderInbox() {
       <button class="play" title="Listen">${PLAY}</button>
       <div class="meta"><b>${p.guess ? `${esc(p.guess)}?` : p.throughKeys ? 'Through the keys?' : 'Song'}</b><br>${pieceMeta(p)}</div>
       <div class="name-form">
-        <input placeholder="Song name" list="songNames" value="${esc(p.guess || '')}">
-        <span class="seg pick"><button data-s="new" class="on" title="New to my repertoire">New</button><button data-s="known" title="I already know it">Known</button></span>
+        <input placeholder="Song name" list="songNames" value="${esc(drafts[p.id] ? drafts[p.id].name : p.guess || '')}">
+        <span class="seg pick"><button data-s="new" class="${(drafts[p.id] && drafts[p.id].status) !== 'known' ? 'on' : ''}" title="New to my repertoire">New</button><button data-s="known" class="${drafts[p.id] && drafts[p.id].status === 'known' ? 'on' : ''}" title="I already know it">Known</button></span>
         <button class="primary save">Save</button>
         ${p.throughKeys ? '<button class="ghost tech">Technique</button>' : ''}
         <select class="mini" aria-label="Not a song"><option value="">Not a song</option><option value="noodling">Noodling</option><option value="technique">Technique</option><option value="skip">Not practice</option></select>
@@ -146,12 +148,13 @@ function renderInbox() {
     const id = row.dataset.id, inp = $('input', row);
     $('.play', row).onclick = (e) => togglePlay(id, e.currentTarget);
     // New / Known is a choice (a song already in the list takes its status); Save (or Enter) names it
-    const pick = (st) => row.querySelectorAll('.pick button').forEach((b) => b.classList.toggle('on', b.dataset.s === st));
+    const keep = () => { drafts[id] = { name: inp.value, status: $('.pick .on', row).dataset.s }; };
+    const pick = (st) => { row.querySelectorAll('.pick button').forEach((b) => b.classList.toggle('on', b.dataset.s === st)); keep(); };
     row.querySelectorAll('.pick button').forEach((b) => { b.onclick = () => pick(b.dataset.s); });
     const match = () => data.songs.find((x) => x.name.toLowerCase() === inp.value.trim().toLowerCase());
-    inp.oninput = () => { const m = match(); if (m) pick(m.status); };
-    if (match()) pick(match().status);
-    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: $('.pick .on', row).dataset.s }); load(); };
+    inp.oninput = () => { const m = match(); if (m) pick(m.status); else keep(); };
+    if (!drafts[id] && match()) pick(match().status);
+    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: $('.pick .on', row).dataset.s }); delete drafts[id]; load(); };
     $('.save', row).onclick = save;
     inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
     const tb = $('.tech', row); if (tb) tb.onclick = async () => { await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
@@ -213,7 +216,7 @@ function renderNoodling() {
     const secs = p.segs.filter((x) => x.cat === 'noodling').reduce((a, x) => a + x.seconds, 0);
     const keyIdx = (p.segs.find((x) => x.cat === 'noodling' && x.key != null) || {}).key;
     return `<div class="take" data-id="${esc(p.id)}"><button class="play" title="Listen">${PLAY}</button>
-      <div class="meta"><b>${dayName(p.start_ms)} ${clock(p.start_ms)}</b><br>${[mss(secs), keyIdx != null ? KEYS[keyIdx] : '', ...(p.style || [])].filter(Boolean).map(esc).join(' · ')}</div><div></div></div>`;
+      <div class="meta"><b>${dayName(p.start_ms)} ${clock(p.start_ms)}</b><br>${[mss(secs), keyIdx != null ? KEYS[keyIdx] : "", ...styleOf(p)].filter(Boolean).map(esc).join(' · ')}</div><div></div></div>`;
   }).join('') : '<div class="empty">No noodling this week</div>');
   el.querySelectorAll('.take').forEach((row) => { $('.play', row).onclick = (e) => togglePlay(row.dataset.id, e.currentTarget); });
   wireSpan(el);
@@ -309,7 +312,7 @@ function renderLog() {
     const labels = drillSummary(p.segs.flatMap((s) => (s.label ? s.label.split(', ') : [])));
     const tags = Object.keys(cats).map((c) => `<span class="tag" style="--c:var(${CAT[c][1]})">${c === 'new-song' || c === 'known-song' ? esc(p.songName || CAT[c][0]) : CAT[c][0]}</span>`);
     if (p.recording) tags.push('<span class="tag" style="--c:var(--recording)">Filmed</span>');
-    const extra = [...labels.slice(0, 3), p.key && !labels.length ? p.key : '', ...(p.style || [])].filter(Boolean).map((x) => `<span class="tag dim">${esc(x)}</span>`);
+    const extra = [...labels.slice(0, 3), p.key && !labels.length ? p.key : "", ...styleOf(p)].filter(Boolean).map((x) => `<span class="tag dim">${esc(x)}</span>`);
     const cur = p.label && p.label.kind ? p.label.kind : '';
     return `<div class="entry" data-ids="${esc(p.ids.join(' '))}"><button class="play sm" title="Listen">${PLAY}</button><span class="when num">${clock(p.start_ms)}</span><span class="num">${mss(p.played)}</span>
       <span class="what">${tags.join('')}${extra.join('')}</span>
@@ -361,20 +364,36 @@ function stopPlay() { if (playing) playing.stop(); }
 async function playFrom(id, from, secs) {
   stopPlay();
   audio ||= new AudioContext();
+  await loadPiano();
   const notes = (await api(`/api/notes?id=${encodeURIComponent(id)}`)).filter((n) => n[0] >= from && n[0] < from + secs).map(([t, ...r]) => [t - from, ...r]);
   playing = scheduleNotes(notes, id, null, secs);
 }
+const SAMPLES = []; // [{ note, buffer }]
+let samplesLoading = null;
+function loadPiano() {
+  if (samplesLoading) return samplesLoading;
+  const names = [];
+  for (let o = 0; o <= 7; o++) for (const [k, pc] of [['C', 0], ['Ds', 3], ['Fs', 6], ['A', 9]]) if (o > 0 || k === 'A') names.push([k + o, 12 * (o + 1) + pc]);
+  names.push(['C8', 108]);
+  samplesLoading = Promise.all(names.map(async ([n, note]) => {
+    try { const b = await (await fetch(`piano/${n}.mp3`)).arrayBuffer(); SAMPLES.push({ note, buffer: await audio.decodeAudioData(b) }); } catch {}
+  }));
+  return samplesLoading;
+}
 function scheduleNotes(notes, id, btn, limit) {
-  const t0 = audio.currentTime + 0.05, out = audio.createGain(); out.gain.value = 0.18; out.connect(audio.destination);
+  const t0 = audio.currentTime + 0.08, out = audio.createGain(); out.gain.value = 0.55; out.connect(audio.destination);
   const nodes = [];
   for (const [t, note, dur, vel] of notes) {
     if (t > limit) break;
-    const f = 440 * 2 ** ((note - 69) / 12), g = audio.createGain(), o1 = audio.createOscillator(), o2 = audio.createOscillator();
-    o1.type = 'triangle'; o1.frequency.value = f; o2.type = 'sine'; o2.frequency.value = f * 2;
-    const at = t0 + t, len = Math.min(4, dur + 0.4), peak = (vel / 127) * 0.5;
-    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(peak, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0008, at + len);
-    o1.connect(g); o2.connect(g); g.connect(out); o1.start(at); o2.start(at); o1.stop(at + len); o2.stop(at + len);
-    nodes.push(o1, o2);
+    if (!SAMPLES.length) break;
+    let smp = SAMPLES[0];
+    for (const x of SAMPLES) if (Math.abs(x.note - note) < Math.abs(smp.note - note)) smp = x;
+    const src = audio.createBufferSource(), g = audio.createGain();
+    src.buffer = smp.buffer; src.playbackRate.value = 2 ** ((note - smp.note) / 12);
+    const at = t0 + t, off = at + Math.max(0.12, Math.min(dur, 8)), peak = Math.pow(vel / 127, 1.6) * 0.9;
+    g.gain.setValueAtTime(peak, at); g.gain.setValueAtTime(peak, off); g.gain.exponentialRampToValueAtTime(0.0005, off + 0.35);
+    src.connect(g); g.connect(out); src.start(at); src.stop(off + 0.4);
+    nodes.push(src);
   }
   const p = { id, stop: () => { clearTimeout(p.timer); out.disconnect(); nodes.forEach((n) => { try { n.stop(); } catch {} }); if (btn) btn.innerHTML = PLAY; if (playing === p) playing = null; } };
   p.timer = setTimeout(() => p.stop(), (Math.min(limit, notes.length ? notes[notes.length - 1][0] : 0) + 4) * 1000);
@@ -384,9 +403,69 @@ function scheduleNotes(notes, id, btn, limit) {
 async function togglePlay(id, btn) {
   if (playing) { const was = playing.id; playing.stop(); if (was === id) return; }
   audio ||= new AudioContext();
+  btn.classList.add('loading');
+  await loadPiano();
+  btn.classList.remove('loading');
   const notes = await api('/api/notes?id=' + encodeURIComponent(id));
   playing = scheduleNotes(notes, id, btn, 90);
 }
+
+// ---- listening through the microphone: only between Listen and Stop, always shown ----
+const MIC = { stream: null, ctx: null, node: null, buf: [], len: 0, sent: 0, prev: null, started: 0, timer: null, quietSince: 0, wake: null };
+const MIC_SR = 22050, MIC_PIECE_S = 20, MIC_PRE_S = 1, MIC_QUIET_MIN = 20;
+async function micStart() {
+  try {
+    MIC.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+  } catch (e) { alert('NoteshAIre could not use the microphone. Allow it in your computer\'s settings and try again.'); return; }
+  await api('/api/mic/start', {});
+  MIC.ctx = new AudioContext({ sampleRate: MIC_SR });
+  const src = MIC.ctx.createMediaStreamSource(MIC.stream);
+  MIC.node = MIC.ctx.createScriptProcessor(4096, 1, 1);
+  MIC.node.onaudioprocess = (e) => { const d = new Float32Array(e.inputBuffer.getChannelData(0)); MIC.buf.push(d); MIC.len += d.length; if (MIC.len >= MIC_PIECE_S * MIC_SR) micSend(); };
+  src.connect(MIC.node); MIC.node.connect(MIC.ctx.destination);
+  Object.assign(MIC, { buf: [], len: 0, sent: 0, prev: null, started: Date.now(), quietSince: Date.now() });
+  try { MIC.wake = await navigator.wakeLock.request('screen'); } catch {}
+  MIC.timer = setInterval(micTick, 1000);
+  micTick();
+}
+/** send the sound gathered so far, with the last second of the previous piece in front of it */
+async function micSend() {
+  if (!MIC.len) return;
+  const piece = new Float32Array(MIC.len); let o = 0;
+  for (const b of MIC.buf) { piece.set(b, o); o += b.length; }
+  MIC.buf = []; MIC.len = 0;
+  const pre = MIC.prev ? MIC.prev.subarray(Math.max(0, MIC.prev.length - MIC_PRE_S * MIC_SR)) : new Float32Array(0);
+  const body = new Float32Array(pre.length + piece.length); body.set(pre); body.set(piece, pre.length);
+  const offset = MIC.sent / MIC_SR, preroll = pre.length / MIC_SR;
+  MIC.sent += piece.length; MIC.prev = piece;
+  const r = await fetch(`/api/mic/chunk?offset=${offset}&preroll=${preroll}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: body.buffer }).then((x) => x.json()).catch(() => ({}));
+  if (r.heard >= 3) MIC.quietSince = Date.now();
+}
+async function micStop(reason) {
+  if (!MIC.stream) return;
+  clearInterval(MIC.timer);
+  try { MIC.node.disconnect(); } catch {}
+  MIC.stream.getTracks().forEach((t) => t.stop());
+  await micSend();
+  try { await MIC.ctx.close(); } catch {}
+  try { if (MIC.wake) await MIC.wake.release(); } catch {}
+  MIC.stream = null;
+  $('#micbar').hidden = true;
+  await api('/api/mic/stop', {});
+  if (reason) $('#micnote').textContent = reason, $('#micnote').hidden = false, setTimeout(() => { $('#micnote').hidden = true; }, 15000);
+  load();
+}
+function micTick() {
+  const sec = (Date.now() - MIC.started) / 1000;
+  $('#micbar').hidden = false;
+  $('#micTime').textContent = mss(sec);
+  // nothing heard for 20 minutes: stop listening by itself
+  if (Date.now() - MIC.quietSince > MIC_QUIET_MIN * 60e3) micStop(`Stopped listening: nothing heard for ${MIC_QUIET_MIN} minutes.`);
+}
+$('#micBtn').onclick = () => { if (MIC.stream) return micStop(); $('#micAsk').showModal(); };
+$('#micAsk').addEventListener('close', () => { if ($('#micAsk').returnValue === 'go') micStart(); });
+$('#micStop').onclick = () => micStop();
+window.addEventListener('beforeunload', () => { if (MIC.stream) navigator.sendBeacon && fetch('/api/mic/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', keepalive: true }); });
 
 // ---- live status ----
 let lastTakes = -1;
@@ -454,6 +533,9 @@ function openSettings() {
     ? '<div class="set-row"><div><b>Keep recordings</b><div class="meta">Always on here: Piano Studio uses them for your videos.</div></div></div>'
     : `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.</div></div>
        <input type="checkbox" id="keepRec" class="switch" ${info.keepRecordings ? 'checked' : ''}></label>`;
+  $('#setBody').insertAdjacentHTML('afterbegin', `<label class="set-row"><div><b>I play</b><div class="meta">Keyboard players can plug in by USB. Everyone can use Listen.</div></div>
+    <select id="instrument" class="mini">${[['piano', 'Piano / keyboard'], ['guitar', 'Guitar'], ['voice', 'Voice'], ['wind', 'Sax / brass / wind'], ['other', 'Something else']].map(([v, n]) => `<option value="${v}" ${info.instrument === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`);
+  $('#instrument').onchange = async (e) => { info.instrument = e.target.value; await api('/api/settings', { instrument: info.instrument }); render(); };
   const k = $('#keepRec');
   if (k) k.onchange = async () => { info.keepRecordings = k.checked; await api('/api/settings', { keepRecordings: k.checked }); };
   $('#settings').showModal();

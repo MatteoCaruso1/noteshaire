@@ -9,7 +9,7 @@
 //   fragment  stop-start playing in short bursts (working something out, playing along with a video)
 //   music     chords and lines: a song or free playing (named later by the song matcher)
 
-export const VERSION = 6;
+export const VERSION = 7;
 
 export const OPT = {
   piece_gap_s: 4,       // no key struck for this long starts a new piece
@@ -135,7 +135,10 @@ export function nameScale(notes, line) {
   for (let i = 1; i < line.length - 1; i++) if (line[i] < line[i - 1] && line[i] <= line[i + 1]) turns.push(line[i]);
   const votes = new Array(12).fill(0);
   turns.forEach((p) => { votes[pc(p)] += 1; });
-  votes[pc(Math.min(...line))] += 0.5;
+  // a scale starts on its root, and its lowest note is the root: both count more than a turn (a turn can be lost when a
+  // microphone misses a note)
+  votes[pc(line[0])] += 2;
+  votes[pc(Math.min(...notes.map((n) => n.note)))] += 1.5;
   const setPcs = fit.tp.set.map((x) => (x + fit.r) % 12);
   let root = setPcs.reduce((b, p) => (votes[p] > votes[b] ? p : b), setPcs[0]);
   if (!votes[root]) root = fit.r;
@@ -157,7 +160,9 @@ export function features(notes, t0, t1) {
   const dur = Math.max(0.5, t1 - t0);
   const chordFrac = ev.filter((c) => c.notes.length >= 3).length / Math.max(1, ev.length);
   const line = ev.map((c) => c.top);
-  const d = line.slice(1).map((p, i) => p - line[i]);
+  // steps are measured by note name, not octave: a scale in octaves heard through a microphone can lose its top note,
+  // which would read as a jump down an octave (12 -> 0, 13 -> 1, 11 -> -1)
+  const d = line.slice(1).map((p, i) => { const x = (((p - line[i]) % 12) + 18) % 12 - 6; return x === -6 && p > line[i] ? 6 : x; });
   const steps = d.filter((x) => Math.abs(x) >= 1 && Math.abs(x) <= 2).length / Math.max(1, d.length);
   const leaps = d.filter((x) => Math.abs(x) >= 3 && Math.abs(x) <= 9).length / Math.max(1, d.length);
   const repeats = d.filter((x) => x === 0).length / Math.max(1, d.length);
@@ -167,7 +172,9 @@ export function features(notes, t0, t1) {
   if (run > 1) runs.push(run);
   const meanRun = mean(runs);
   const ioi = ev.slice(1).map((c, i) => c.t - ev[i].t).filter((x) => x < 0.7);
-  const cv = ioi.length > 4 ? sd(ioi) / mean(ioi) : 1;
+  // evenness from the median spread (a few stray notes, as a microphone hears an echo, do not make even playing look uneven)
+  const med = (v) => { const x = [...v].sort((p, q) => p - q); return x.length ? x[Math.floor(x.length / 2)] : 0; };
+  const cv = ioi.length > 4 ? (1.4826 * med(ioi.map((x) => Math.abs(x - med(ioi))))) / med(ioi) : 1;
   // a pause is a second with nothing sounding (a held ballad chord is not a pause)
   let sounding = -1, pauses = 0;
   for (const n of notes) { if (sounding >= 0 && n.t - sounding > 1.0) pauses++; sounding = Math.max(sounding, n.t + Math.min(n.dur, 4)); }

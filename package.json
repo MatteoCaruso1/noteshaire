@@ -1,6 +1,6 @@
 {
   "name": "noteshaire",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "type": "module",
   "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",
@@ -12,10 +12,13 @@
     "dist:win": "electron-builder --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "release": "electron-builder --publish always",
-    "install-app": "node src/install.mjs"
+    "install-app": "node src/install.mjs",
+    "test:audio": "node tests/verify-audio.mjs"
   },
   "dependencies": {
     "@julusian/midi": "^3.8.1",
+    "@spotify/basic-pitch": "^1.0.1",
+    "@tensorflow/tfjs-backend-wasm": "^3.21.0",
     "electron-updater": "^6.8.11",
     "midi-file": "^1.2.4"
   },
@@ -41,9 +44,6 @@
       "build/icon.png",
       "build/tray.png",
       "package.json"
-    ],
-    "asarUnpack": [
-      "node_modules/@julusian/midi/**"
     ],
     "win": {
       "target": [
@@ -88,7 +88,10 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "notarize": true,
-      "x64ArchFiles": "**/node_modules/@julusian/midi/prebuilds/**"
+      "x64ArchFiles": "**/node_modules/@julusian/midi/prebuilds/**",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "NoteshAIre listens only during a session you start, to turn what you play into notes on this computer. No audio is saved."
+      }
     },
     "publish": [
       {
@@ -98,6 +101,7 @@
         "releaseType": "draft"
       }
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "asar": false
   }
 }

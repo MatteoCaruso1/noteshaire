@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openStore, weekStart, DEFAULT_GOALS, OWNER_GOALS } from './store.mjs';
 import { startRecorder } from './recorder.mjs';
+import { micSessions } from './mic.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.join(HERE, '..', 'ui');
@@ -36,6 +37,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
   const settings = () => { try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { return {}; } };
   const log = (...a) => { const line = `${new Date().toISOString()} ${a.join(' ')}\n`; process.stdout.write(line); try { fs.appendFileSync(path.join(store.DATA, 'practice.log'), line); } catch {} };
   const timers = [];
+  const mic = micSessions({ root, log: (...a) => log(...a) });
   let rec = { state: 'on', nord: '', recording: false, take_seconds: 0, error: '' }, builtin = null;
 
   if (mode === 'builtin') { builtin = await startRecorder({ root, log }); rec = builtin.state; }
@@ -113,7 +115,9 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
     if (req.method !== 'GET') {
       const origin = req.headers.origin;
       if (origin && origin !== `http://${host}`) return send(res, 403, 'bad origin', 'text/plain');
-      if (!String(req.headers['content-type'] || '').startsWith('application/json')) return send(res, 415, 'json only', 'text/plain');
+      // sound pieces from the listening session come as raw audio: also a type a cross-site page cannot send without a preflight
+      const ct = String(req.headers['content-type'] || ''), raw = req.url.startsWith('/api/mic/chunk') && ct.startsWith('application/octet-stream');
+      if (!ct.startsWith('application/json') && !raw) return send(res, 415, 'json only', 'text/plain');
     }
     const u = new URL(req.url, 'http://x');
     try {
@@ -122,7 +126,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
         if (!f.startsWith(UI) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
         return send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
       }
-      if (u.pathname === '/api/info') { const st = settings(); return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!st.tutorialSeen, guideDone: !!st.guideDone, goalsSet: fs.existsSync(path.join(store.DATA, 'goals.json')), keepRecordings: st.keepRecordings !== false }); }
+      if (u.pathname === '/api/info') { const st = settings(); return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!st.tutorialSeen, guideDone: !!st.guideDone, goalsSet: fs.existsSync(path.join(store.DATA, 'goals.json')), keepRecordings: st.keepRecordings !== false, instrument: st.instrument || 'piano' }); }
       if (u.pathname === '/api/status') return send(res, 200, { recorder: rec.state, nord: rec.nord, recording: rec.recording, take_seconds: rec.take_seconds, error: rec.error || '', takes: store.takes().length });
       if (u.pathname === '/api/week') {
         const w = u.searchParams.get('start');
@@ -131,13 +135,24 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
       if (u.pathname === '/api/trends') return send(res, 200, store.trends(12));
       if (u.pathname === '/api/notes') return send(res, 200, store.pieceNotes(u.searchParams.get('id') || '') || []);
       if (u.pathname === '/api/progress') return send(res, 200, store.progress(u.searchParams.get('label') || ''));
+      if (u.pathname === '/api/mic') return send(res, 200, mic.state());
       if (req.method !== 'POST') return send(res, 404, { error: 'unknown' });
+      if (u.pathname === '/api/mic/chunk') {
+        const chunks = []; let len = 0;
+        for await (const c of req) { chunks.push(c); len += c.length; if (len > 12e6) return send(res, 413, { error: 'too big' }); }
+        const buf = Buffer.concat(chunks);
+        const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.length / 4));
+        return send(res, 200, await mic.chunk(f32, +u.searchParams.get('offset') || 0, +u.searchParams.get('preroll') || 0));
+      }
       const b = await body(req);
+      if (u.pathname === '/api/mic/start') return send(res, 200, mic.start());
+      if (u.pathname === '/api/mic/stop') return send(res, 200, await mic.stop());
       if (u.pathname === '/api/seen') { fs.writeFileSync(settingsFile, JSON.stringify({ ...settings(), tutorialSeen: true })); return send(res, 200, { ok: true }); }
       if (u.pathname === '/api/settings') {
         const next = { ...settings() };
         if (typeof b.keepRecordings === 'boolean' && mode === 'builtin') next.keepRecordings = b.keepRecordings;
         if (typeof b.guideDone === 'boolean') next.guideDone = b.guideDone;
+      if (['piano', 'guitar', 'voice', 'wind', 'other'].includes(b.instrument)) next.instrument = b.instrument;
         fs.writeFileSync(settingsFile, JSON.stringify(next));
         if (next.keepRecordings === false) prune();
         return send(res, 200, { ok: true });
@@ -155,7 +170,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
   await new Promise((ok, bad) => { server.once('error', bad); server.listen(port, '127.0.0.1', ok); });
   const actual = server.address().port;
   log(`[noteshaire] ${PKG.version} on http://127.0.0.1:${actual}/ (${mode}, data ${store.DATA})`);
-  return { port: actual, mode, store, status: () => rec, close: () => { timers.forEach(clearInterval); if (builtin) builtin.stop(); server.close(); } };
+  return { port: actual, mode, store, status: () => rec, close: () => { timers.forEach(clearInterval); if (builtin) builtin.stop(); mic.stop(); server.close(); } };
 }
 
 // run directly: the old way (Matteo's laptop before the desktop app), port 4320

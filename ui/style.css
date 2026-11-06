@@ -242,3 +242,15 @@ details.gc summary::-webkit-details-marker { display: none; }
 .grow-head span { padding-left: 2px; }
 .grow-row { grid-template-columns: 1fr 92px 200px 28px; }
 .hint[hidden] { display: none; }
+
+.play.loading { opacity: .5; }
+.credit { color: var(--faint); font-size: 12px; margin: 14px 0 0; }
+
+/* listening through the microphone: unmistakable while on */
+.mic-btn { margin-left: 4px; }
+.micbar { position: sticky; top: 57px; z-index: 6; display: flex; align-items: center; gap: 12px; padding: 10px 24px; background: color-mix(in srgb, var(--red) 22%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--red) 40%, var(--bg)); font-size: 14px; }
+.micbar .num { color: var(--mute); }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+.micnote { padding: 10px 24px; color: var(--mute); background: var(--raise); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.micnote[hidden], .micbar[hidden] { display: none; }
+#micAsk, #settings { overflow: hidden; }

@@ -75,3 +75,15 @@ session goals (picked from weekly goals, capped at what is left, filled from pla
 button when naming; play buttons in Log and Songs; Settings: keep recordings (friends; off = deleted after 7 days, stats
 stay; always on with Piano Studio). First start: welcome -> glowing Weekly goals pencil "Start here" -> labelled editor ->
 "Now just play" at the status.
+
+## Listening through the microphone (owner 2026-11-06)
+For acoustic pianos, voice, guitar, horns. Explicit consent: the person presses Listen, confirms, a red "Listening
+through the microphone" bar shows with Stop; it stops by itself after 20 min with nothing heard. The window sends 20 s
+pieces (+1 s overlap) to /api/mic/chunk; src/mic.mjs runs Spotify Basic Pitch (src/transcribe.mjs, TF.js WASM engine,
+in a worker thread) and writes the notes as a take; no audio is saved. Measured (tests/verify-audio.mjs, `npm run
+test:audio`, needs ffmpeg): sampled piano with room noise through the mic reads 100% right for scales (keys right),
+arpeggios, lick drill, swing and ballad tunes; a tune heard through the mic matches its keyboard take (0.215 vs 0.003);
+~4x faster than real time. Not yet measured on a real room/real piano/laptop mic. Settings: "I play" (piano, guitar,
+voice, wind, other): only hides piano-only feel tags for now. Drums: no pitch, not supported. Packaging: asar off (the
+worker cannot load modules from an asar); Mac Info.plist has NSMicrophoneUsageDescription and the audio-input
+entitlement. Playback uses the Salamander Grand Piano samples (ui/piano, CC-BY 3.0 Alexander Holm, credited in Settings).

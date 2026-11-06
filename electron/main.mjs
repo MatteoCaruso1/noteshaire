@@ -1,6 +1,6 @@
 ﻿// NoteshAIre desktop app: one window over the local server, a tray icon that keeps listening when the window is closed,
 // starts with the computer (hidden), updates itself from GitHub Releases when nothing is being recorded.
-import { app, BrowserWindow, Tray, Menu, shell, nativeImage, Notification } from 'electron';
+import { app, BrowserWindow, Tray, Menu, shell, nativeImage, Notification, session, systemPreferences } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +101,13 @@ app.whenReady().then(async () => {
   const mode = detectMode();
   const root = mode === 'piano-studio' ? defaultRoot(mode) : path.join(app.getPath('userData'), 'data');
   srv = await startServer({ mode, root, port: 0 });
+  // the microphone, for listening sessions the person starts, and only for the app's own page
+  const own = (url) => String(url || '').startsWith(`http://127.0.0.1:${srv.port}/`);
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
+    if (perm !== 'media' || !own(details.requestingUrl)) return cb(false);
+    if (process.platform === 'darwin') systemPreferences.askForMediaAccess('microphone').then(cb); else cb(true);
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => perm === 'media' && own(origin + '/'));
   // first run: start with the computer (the point is that recording never needs remembering)
   if (app.isPackaged && !flags().loginSet) { app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, args: ['--hidden'] }); setFlag('loginSet', true); }
   tray = new Tray(nativeImage.createFromPath(TRAY));
