@@ -129,7 +129,7 @@ function renderSongs() {
   const max = Math.max(60, ...data.songs.map((s) => s.weekSeconds));
   el.innerHTML = areaTop('songs', '--new-song') + `<table><thead><tr><th>Song</th><th></th><th>This week</th><th class="r">Plays</th><th class="r">Key</th><th class="r">Last</th></tr></thead><tbody>${data.songs.map((s) => `
     <tr><td>${esc(s.name)}</td>
-      <td><button class="status-btn ${s.status === 'new' ? 'new' : ''}" data-id="${esc(s.id)}" data-s="${s.status}">${s.status === 'new' ? 'New' : 'Known'}</button></td>
+      <td><button class="status-btn ${s.status === 'new' ? 'new' : ''}" data-id="${esc(s.id)}" data-s="${esc(s.status)}">${s.status === 'new' ? 'New' : 'Known'}</button></td>
       <td class="num"><span class="mbar" style="width:${Math.round((s.weekSeconds / max) * 120)}px;--c:var(${s.status === 'new' ? '--new-song' : '--known-song'})"></span>${s.weekSeconds ? short(s.weekSeconds) : ''}</td>
       <td class="r num">${s.plays}</td><td class="r">${esc(s.key || '')}</td><td class="r">${ago(s.last)}</td></tr>`).join('')}</tbody></table>`;
   wireSpan(el);

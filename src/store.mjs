@@ -386,8 +386,8 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const db = songsDb(), lab = labels();
     const id = slug(name);
     let s = db.songs.find((x) => x.id === id || x.name.toLowerCase() === String(name).trim().toLowerCase());
-    if (!s) { s = { id, name: String(name).trim().slice(0, 80), status: status || 'new', created: new Date().toISOString() }; db.songs.push(s); }
-    else if (status) s.status = status;
+    if (!s) { s = { id, name: String(name).trim().slice(0, 80), status: status === 'known' ? 'known' : 'new', created: new Date().toISOString() }; db.songs.push(s); }
+    else if (status) s.status = status === 'known' ? 'known' : 'new';
     lab[pieceId] = { song: s.id, at: new Date().toISOString() };
     writeJson(F.songs, db); writeJson(F.labels, lab);
     return s;

@@ -103,6 +103,16 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
 
   const server = http.createServer(async (req, res) => {
     if (!local(req)) return send(res, 403, 'this computer only', 'text/plain');
+    // Websites open in a browser can also reach 127.0.0.1. Only answer requests addressed to this
+    // server by name (blocks DNS rebinding), and only accept writes from the app itself as JSON
+    // (a cross-site form or text/plain POST can't set that without a preflight we never allow).
+    const host = String(req.headers.host || '');
+    if (!/^(127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(host)) return send(res, 403, 'bad host', 'text/plain');
+    if (req.method !== 'GET') {
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${host}`) return send(res, 403, 'bad origin', 'text/plain');
+      if (!String(req.headers['content-type'] || '').startsWith('application/json')) return send(res, 415, 'json only', 'text/plain');
+    }
     const u = new URL(req.url, 'http://x');
     try {
       if (req.method === 'GET' && !u.pathname.startsWith('/api/')) {
