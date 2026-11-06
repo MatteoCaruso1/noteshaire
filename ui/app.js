@@ -113,8 +113,8 @@ function renderInbox() {
 
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  for (const t of ['songs', 'technique', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
-  ({ songs: renderSongs, technique: renderTechnique, log: renderLog, trends: renderTrends })[tab]();
+  for (const t of ['songs', 'technique', 'keys', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
+  ({ songs: renderSongs, technique: renderTechnique, keys: renderKeys, log: renderLog, trends: renderTrends })[tab]();
 }
 
 function ago(ms) {
@@ -135,15 +135,36 @@ function renderSongs() {
 }
 
 const FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
-function wheel(keys) {
-  const max = Math.max(60, ...keys), R = 84, C = 105;
-  const dots = FIFTHS.map((k, i) => {
-    const a = (i / 12) * Math.PI * 2 - Math.PI / 2, x = C + Math.cos(a) * R, y = C + Math.sin(a) * R, v = keys[k] / max;
-    const r = 9 + v * 9;
-    return `<g class="${keys[k] >= 10 ? 'hot' : ''}"><title>${KEYS[k]} ${short(keys[k])}</title><circle cx="${x}" cy="${y}" r="${r}" fill="${keys[k] >= 10 ? `color-mix(in srgb, var(--technique) ${Math.round(25 + v * 75)}%, #15171a)` : '#15171a'}" stroke="#23262c"/><text x="${x}" y="${y}">${KEYS[k]}</text></g>`;
+let keySpan = 'week';
+/** circle of fifths: outer ring songs (green), inner ring technique (blue); brightness = time in that key */
+function wheel(k) {
+  const C = 130, max = Math.max(60, ...k.songs, ...k.tech);
+  const fill = (v, c) => (v >= 10 ? `color-mix(in srgb, var(${c}) ${Math.round(30 + Math.sqrt(v / max) * 70)}%, #15171a)` : '#15171a');
+  const at = (i, r) => { const a = (i / 12) * Math.PI * 2 - Math.PI / 2; return [C + Math.cos(a) * r, C + Math.sin(a) * r]; };
+  const dots = FIFTHS.map((key, i) => {
+    const [x, y] = at(i, 106), [ix, iy] = at(i, 70), sv = k.songs[key], tv = k.tech[key];
+    const tip = [`${KEYS[key]}`, sv >= 10 ? `songs ${short(sv)}${k.names[key] ? ` (${k.names[key].join(', ')})` : ''}` : '', tv >= 10 ? `technique ${short(tv)}` : ''].filter(Boolean).join(' · ');
+    return `<g class="${sv >= 10 || tv >= 10 ? 'hot' : ''}"><title>${esc(tip)}</title>
+      <circle cx="${x}" cy="${y}" r="17" fill="${fill(sv, '--new-song')}" stroke="#23262c"/><text x="${x}" y="${y}">${KEYS[key]}</text>
+      <circle cx="${ix}" cy="${iy}" r="8" fill="${fill(tv, '--technique')}" stroke="#23262c"/></g>`;
   }).join('');
-  const covered = keys.filter((x) => x >= 10).length;
-  return `<svg class="wheel" viewBox="0 0 210 210" width="210" height="210">${dots}<text x="105" y="98" style="font-size:26px;fill:var(--ink);font-weight:600">${covered}</text><text x="105" y="122">of 12 keys</text></svg>`;
+  const ns = k.songs.filter((v) => v >= 10).length, nt = k.tech.filter((v) => v >= 10).length;
+  return `<svg class="wheel" viewBox="0 0 260 260" width="260" height="260">${dots}
+    <text x="${C}" y="${C - 12}" style="font-size:13px;fill:var(--new-song);font-weight:600">${ns} song keys</text>
+    <text x="${C}" y="${C + 10}" style="font-size:13px;fill:var(--technique);font-weight:600">${nt} technique keys</text></svg>`;
+}
+function renderKeys() {
+  const el = $('#tab-keys'), k = data.keys[keySpan], m = data.keys.month;
+  const untouched = FIFTHS.filter((key) => m.songs[key] < 10 && m.tech[key] < 10).map((key) => KEYS[key]);
+  const songsOnly = FIFTHS.filter((key) => m.songs[key] >= 10 && m.tech[key] < 10).map((key) => KEYS[key]);
+  const rows = FIFTHS.filter((key) => k.songs[key] >= 10 || k.tech[key] >= 10).sort((a, b) => k.songs[b] + k.tech[b] - k.songs[a] - k.tech[a]);
+  el.innerHTML = `<div class="keys-head"><span class="seg"><button data-span="week" class="${keySpan === 'week' ? 'on' : ''}">This week</button><button data-span="month" class="${keySpan === 'month' ? 'on' : ''}">4 weeks</button></span></div>
+    <div class="tech-grid wide"><div>${wheel(k)}</div><div>
+      ${rows.length ? `<table><thead><tr><th>Key</th><th>Songs</th><th class="r">Songs</th><th class="r">Technique</th></tr></thead><tbody>${rows.map((key) => `<tr><td>${KEYS[key]}</td><td class="meta">${esc((k.names[key] || []).join(', '))}</td><td class="r num">${k.songs[key] >= 10 ? short(k.songs[key]) : ''}</td><td class="r num">${k.tech[key] >= 10 ? short(k.tech[key]) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nothing yet</div>'}
+      ${untouched.length ? `<div class="neglect"><h2>Untouched in 4 weeks</h2><span class="keys">${untouched.map((x) => `<i>${x}</i>`).join('')}</span></div>` : ''}
+      ${songsOnly.length ? `<div class="neglect"><h2>Songs, no technique (4 weeks)</h2><span class="keys">${songsOnly.map((x) => `<i class="song">${x}</i>`).join('')}</span></div>` : ''}
+    </div></div>`;
+  el.querySelectorAll('[data-span]').forEach((b) => { b.onclick = () => { keySpan = b.dataset.span; renderKeys(); }; });
 }
 function keyboard(h) {
   const max = Math.max(1, ...h), white = [];
@@ -183,8 +204,8 @@ function renderTechnique() {
   }
   const t = Object.values(drills).sort((a, b) => b.seconds - a.seconds);
   const keyRow = (keys) => `<span class="keys">${FIFTHS.map((k) => `<i class="${keys[k] ? 'on' : ''}" title="${KEYS[k]}${keys[k] ? ` ${short(keys[k])}` : ''}">${KEYS[k]}</i>`).join('')}</span>`;
-  el.innerHTML = `<div class="tech-grid"><div>${wheel(data.keys)}</div><div>${t.length ? `<table><thead><tr><th>Drill</th><th class="r">Time</th><th class="r">Top speed</th><th class="r">Even</th></tr></thead><tbody>${t.map((d) => `
-    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${spark((data.drills[d.type] || []).map((x) => x.nps))}${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div></div>
+  el.innerHTML = `<div>${t.length ? `<table><thead><tr><th>Drill</th><th class="r">Time</th><th class="r">Top speed</th><th class="r">Even</th></tr></thead><tbody>${t.map((d) => `
+    <tr><td>${esc(d.type[0].toUpperCase() + d.type.slice(1))}${keyRow(d.keys)}</td><td class="r num">${short(d.seconds)}</td><td class="r num">${spark((data.drills[d.type] || []).map((x) => x.nps))}${d.nps}/s</td><td class="r num">${Math.round((d.even.reduce((a, b) => a + b, 0) / d.even.length) * 100)}%</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No technique this week</div>'}</div>
     <div class="kb"><h2>Keyboard</h2>${keyboard(data.keyboard)}</div>`;
 }
 

@@ -150,3 +150,10 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .hits { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; }
 .hits i { height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--c) var(--p), var(--track) var(--p)); }
 .hits i.hit { box-shadow: 0 0 0 1px var(--gold); }
+
+.keys-head { margin-bottom: 14px; }
+.seg button.on { color: var(--ink); background: #22252a; }
+.tech-grid.wide { grid-template-columns: 260px 1fr; }
+.neglect { margin-top: 22px; }
+.neglect .keys i { width: 26px; color: var(--mute); }
+.keys i.song { background: color-mix(in srgb, var(--new-song) 22%, var(--raise)); color: var(--ink); }

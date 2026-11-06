@@ -210,7 +210,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const goals = goalsFor(startDay).map((g) => ({ ...g, seconds: 0 }));
     const days = {}; for (let i = 0; i < 7; i++) days[dayOf(t0 + i * 864e5 + 3600e3)] = {};
     let total = 0, offplan = 0;
-    const cats = {}, keys = new Array(12).fill(0), keyboard = new Array(88).fill(0), songMin = {};
+    const cats = {}, keyboard = new Array(88).fill(0), songMin = {};
     const tech = {};
     const pieces = [];
     for (const p of all) {
@@ -227,8 +227,8 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
         if (!hit) offSec += s.seconds;
         if (s.cat === 'technique') for (const r of s.runs || []) {
           const k = tech[r.label] || (tech[r.label] = { label: r.label, key: r.key, kind: r.kind, seconds: 0, nps: [], even: [] });
-          k.seconds += r.t1 - r.t0; k.nps.push(r.nps); k.even.push(r.even); keys[r.key] += r.t1 - r.t0;
-        } else if (s.key != null && s.cat !== 'free') keys[s.key] += s.seconds;
+          k.seconds += r.t1 - r.t0; k.nps.push(r.nps); k.even.push(r.even);
+        }
       }
       if (!pieceSec) continue;
       total += pieceSec; offplan += offSec;
@@ -246,6 +246,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const inbox = all.filter((p) => !p.song && !(p.label && p.label.kind) && isMusic(p) && musicSeconds(p) >= SONG_MIN_S)
       .sort((a, b) => b.start_ms - a.start_ms).slice(0, 30).map((p) => slim(p, stretches(p, songsById), songsById));
     const techList = Object.values(tech).map((k) => ({ ...k, nps: +(k.nps.reduce((a, b) => a + b, 0) / k.nps.length).toFixed(1), even: +(k.even.reduce((a, b) => a + b, 0) / k.even.length).toFixed(2) })).sort((a, b) => b.seconds - a.seconds);
+    const keys = { week: keyTally(all, t0, t1, songsById), month: keyTally(all, t1 - 28 * 864e5, t1, songsById) };
     return { week: startDay, total, offplan, goals, days, cats, keys, keyboard, songs, pieces: pieces.reverse(), inbox, technique: techList, streak: streak(all), drills: drillHistory(all) };
   }
 
@@ -254,6 +255,29 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     return { id: p.id, take: p.take, start_ms: p.start_ms, seconds: +(p.t1 - p.t0).toFixed(1), key: p.key, bpm: p.bpm, style: p.style,
       song: p.song, songName: s ? s.name : null, auto: p.auto, guess: p.guess && songsById.get(p.guess) ? songsById.get(p.guess).name : null,
       recording: p.recording, label: p.label, segs: st.map((x) => ({ cat: x.cat, seconds: +x.seconds.toFixed(1), label: x.label || null, kind: x.kind || null })) };
+  }
+
+  /** time in each key (by tonic, 0 = C), songs and technique apart. A named song counts in its usual key (the key of most
+   *  of its takes), so one odd reading does not move it; free play and stop-start learning are left out. */
+  function keyTally(all, from, to, songsById) {
+    const songKey = {};
+    for (const p of all) if (p.song && p.keyRoot != null) { const v = (songKey[p.song] ||= new Array(12).fill(0)); v[p.keyRoot] += p.t1 - p.t0; }
+    const usual = (id) => { const v = songKey[id]; return v ? v.indexOf(Math.max(...v)) : null; };
+    const songs = new Array(12).fill(0), tech = new Array(12).fill(0), names = {};
+    for (const p of all) {
+      if (p.start_ms < from || p.start_ms >= to) continue;
+      for (const st of stretches(p, songsById)) {
+        if (st.cat === 'technique') for (const r of st.runs || []) tech[r.key] += r.t1 - r.t0;
+        else if (st.cat === 'new-song' || st.cat === 'known-song' || st.cat === 'unnamed') {
+          const k = p.song ? usual(p.song) : p.keyRoot;
+          if (k == null) continue;
+          songs[k] += st.seconds;
+          const n = p.song && songsById.get(p.song) ? songsById.get(p.song).name : null;
+          if (n) (names[k] ||= new Set()).add(n);
+        }
+      }
+    }
+    return { songs, tech, names: Object.fromEntries(Object.entries(names).map(([k, v]) => [k, [...v]])) };
   }
 
   /** days in a row with at least 10 minutes played, ending today (or yesterday, if today has nothing yet) */
