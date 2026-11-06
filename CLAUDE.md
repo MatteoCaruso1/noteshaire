@@ -30,6 +30,9 @@ edited in the app (pencil by the bars), and carry to the next week.
 - `ui/`: one page, no build step. Kept terse on purpose (owner: "no description text when it's not necessary").
   Tabs (owner 2026-11-06): Songs, Technique, Noodling share one layout (keys wheel, keyboard heatmap, untouched keys,
   then the list: songs / drills / improv pieces with play buttons; new material sits under Noodling), then Log and Trends.
+  Bottom bar (owner 2026-11-06): Home (goals, session goals, naming, tabs), Stats (where the time went, the week strip),
+  Settings (a page, not a dialog). No "a day" pace text. Status shows the keyboard's own name; generic names read
+  "Digital piano"; listening reads "Microphone". Key wheel: linear share of the busiest key, 12-100% colour, outline on top keys.
 
 ## Tests
 `npm test` (about 2 s): generated practice with known answers (`tests/gen.mjs`) for every drill and feel, song matching

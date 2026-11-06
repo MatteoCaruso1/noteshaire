@@ -47,7 +47,7 @@ function renderGoals() {
   const left = daysLeft();
   $('#goals').innerHTML = data.goals.map((g) => {
     const goal = g.minutes * 60, pct = goal ? g.seconds / goal : 0, w = Math.min(1, pct) * 100;
-    const pace = left && pct < 1 ? `<span class="pace">${short((goal - g.seconds) / left)} a day</span>` : '';
+    const pace = '';
     const tick = g.minutes > 0 ? Math.max(2, (30 / g.minutes) * 100) : 100;
     return `<div class="goal ${pct >= 1 ? 'done' : ''}" style="--c:var(${colorOf(g.counts)})">
       <div class="goal-head"><span class="goal-name">${esc(g.name)}</span>
@@ -194,8 +194,8 @@ function wheel(keys, color, noun) {
   const C = 110, max = Math.max(60, ...keys);
   const at = (i, r) => { const a = (i / 12) * Math.PI * 2 - Math.PI / 2; return [C + Math.cos(a) * r, C + Math.sin(a) * r]; };
   const dots = FIFTHS.map((k, i) => {
-    const [x, y] = at(i, 88), v = keys[k], on = v >= 10;
-    return `<g class="${on ? 'hot' : ''}"><title>${KEYS[k]}${on ? ` ${short(v)}` : ''}</title><circle cx="${x}" cy="${y}" r="${on ? 12 + Math.sqrt(v / max) * 7 : 12}" fill="${on ? `color-mix(in srgb, var(${color}) ${Math.round(30 + Math.sqrt(v / max) * 70)}%, #15171a)` : '#15171a'}" stroke="#23262c"/><text x="${x}" y="${y}">${KEYS[k]}</text></g>`;
+    const [x, y] = at(i, 88), v = keys[k], on = v >= 10, f = on ? v / max : 0; // share of the busiest key, linear
+    return `<g class="${on ? 'hot' : ''}${f > 0.55 ? ' top' : ''}"><title>${KEYS[k]}${on ? ` ${short(v)}` : ''}</title><circle cx="${x}" cy="${y}" r="${on ? 11 + f * 10 : 11}" fill="${on ? `color-mix(in srgb, var(${color}) ${Math.round(12 + f * 88)}%, #15171a)` : '#111215'}" stroke="${f > 0.55 ? `var(${color})` : '#23262c'}"/><text x="${x}" y="${y}">${KEYS[k]}</text></g>`;
   }).join('');
   return `<svg class="wheel" viewBox="0 0 220 220" width="220" height="220">${dots}<text x="${C}" y="${C - 8}" style="font-size:26px;fill:var(--ink);font-weight:600">${keys.filter((v) => v >= 10).length}</text><text x="${C}" y="${C + 16}">of 12 keys</text></svg>`;
 }
@@ -473,7 +473,9 @@ async function status() {
   try {
     const s = await api('/api/status');
     let dot = '', txt = '';
-    const kb = (s.nord || '').split(',')[0].replace(/\s*(MIDI|USB)\s*(\d+)?$/i, '').trim();
+    let kb = (s.nord || '').split(',')[0].replace(/\s*(MIDI|USB)\s*(\d+)?$/i, '').trim();
+    if (!kb || /^(usb|midi|usb[ -]?midi|usb audio|audio|device|port|keyboard|interface|midi (in|input|device|interface)|usb (device|interface))[\s\d-]*$/i.test(kb)) kb = 'Digital piano';
+    if (MIC.stream && !s.nord) { $('#status').innerHTML = '<span class="dot ok"></span><span class="st-txt">Microphone</span>'; $('#status').classList.add('live'); return; }
     if (s.nord) { dot = 'ok'; txt = `${kb.length > 22 ? `${kb.slice(0, 21)}…` : kb || 'Keyboard'} connected`; }
     else if (s.recorder === 'on' && s.error) { dot = 'bad'; txt = 'Keyboard busy'; }
     else if (s.recorder === 'on') { dot = ''; txt = 'No keyboard connected'; }
@@ -527,7 +529,7 @@ function guideStep2() {
 }
 window.addEventListener('resize', () => document.querySelectorAll('.hint').forEach((h) => h.remove()));
 
-function openSettings() {
+function renderSettings() {
   const own = info.mode === 'piano-studio';
   $('#setBody').innerHTML = own
     ? '<div class="set-row"><div><b>Keep recordings</b><div class="meta">Always on here: Piano Studio uses them for your videos.</div></div></div>'
@@ -538,11 +540,23 @@ function openSettings() {
   $('#instrument').onchange = async (e) => { info.instrument = e.target.value; await api('/api/settings', { instrument: info.instrument }); render(); };
   const k = $('#keepRec');
   if (k) k.onchange = async () => { info.keepRecordings = k.checked; await api('/api/settings', { keepRecordings: k.checked }); };
-  $('#settings').showModal();
 }
-$('#gear').onclick = () => { if (info) openSettings(); };
-$('#replayTour').onclick = async () => { $('#settings').close(); info.guideDone = false; await api('/api/settings', { guideDone: false }); $('#welcome').showModal(); };
+$('#replayTour').onclick = async () => { info.guideDone = false; await api('/api/settings', { guideDone: false }); showView('home'); $('#welcome').showModal(); };
+
+// ---- bottom bar: Home, Stats, Settings ----
+let view = 'home';
+function showView(v) {
+  view = v;
+  document.querySelectorAll('nav.bottom button').forEach((b) => b.classList.toggle('on', b.dataset.view === v));
+  for (const x of ['home', 'stats', 'settings']) $(`#view-${x}`).hidden = x !== v;
+  document.querySelector('header .week').style.visibility = v === 'settings' ? 'hidden' : '';
+  document.querySelectorAll('.hint').forEach((x) => { x.hidden = v !== 'home'; });
+  if (v === 'settings' && info) renderSettings();
+  window.scrollTo(0, 0);
+  try { localStorage.setItem('view', v); } catch {}
+}
+document.querySelectorAll('nav.bottom button').forEach((b) => { b.onclick = () => showView(b.dataset.view); });
 $('#help').onclick = () => $('#welcome').showModal();
 week = thisWeek();
-welcome();
+welcome().then(() => { let v = 'home'; try { v = localStorage.getItem('view') || 'home'; } catch {} if (['home', 'stats', 'settings'].includes(v)) showView(v); });
 load(); status(); setInterval(status, 3000);

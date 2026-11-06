@@ -15,19 +15,16 @@
     <span id="weekLabel"></span>
     <button id="next" aria-label="Next week">›</button>
   </nav>
-  <div class="head-r"><div id="status" class="status"></div><button id="micBtn" class="ghost small mic-btn" title="Listen through the microphone (acoustic piano, voice, guitar, horns)">Listen</button><button id="help" class="help" title="How it works" aria-label="How it works">?</button><button id="gear" class="help" title="Settings" aria-label="Settings">⚙</button></div>
+  <div class="head-r"><div id="status" class="status"></div><button id="micBtn" class="ghost small mic-btn" title="Listen through the microphone (acoustic piano, voice, guitar, horns)">Listen</button><button id="help" class="help" title="How it works" aria-label="How it works">?</button></div>
 </header>
 
 <div id="micbar" class="micbar" hidden><span class="rec-dot"></span><b>Listening through the microphone</b><span id="micTime" class="num">0:00</span><span class="grow"></span><button id="micStop" class="primary small">Stop</button></div>
 <div id="micnote" class="micnote" hidden></div>
 <main>
+ <div id="view-home" class="view">
   <div class="sec-head"><h2>Weekly goals</h2><button class="edit-goals" id="editGoals" title="Edit goals" aria-label="Edit goals">✎</button></div>
   <section id="goals" class="goals"></section>
   <section id="session" class="session"></section>
-  <h2 class="sec">Stats</h2>
-  <div id="insight" class="insight"></div>
-  <div id="summary" class="summary"></div>
-  <section id="days" class="days"></section>
   <section id="inbox" class="inbox" hidden></section>
 
   <div class="tabs" role="tablist">
@@ -42,7 +39,25 @@
   <section id="tab-noodling" class="tab" hidden></section>
   <section id="tab-log" class="tab" hidden></section>
   <section id="tab-trends" class="tab" hidden></section>
+ </div>
+ <div id="view-stats" class="view" hidden>
+  <h2>Stats</h2>
+  <div id="insight" class="insight"></div>
+  <div id="summary" class="summary"></div>
+  <section id="days" class="days"></section>
+ </div>
+ <div id="view-settings" class="view" hidden>
+  <h2>Settings</h2>
+  <div id="setBody"></div>
+  <div class="set-row"><div><b>Intro</b><div class="meta">The welcome and the first steps again.</div></div><button type="button" id="replayTour" class="ghost small">Show again</button></div>
+  <p class="credit">Piano sound: Salamander Grand Piano by Alexander Holm (CC-BY 3.0).</p>
+ </div>
 </main>
+<nav class="bottom" aria-label="Sections">
+  <button data-view="home" class="on"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+  <button data-view="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10h3v10zm6.5 0V4h3v16zM17 20v-7h3v7z"/></svg>Stats</button>
+  <button data-view="settings"><svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 4.6l1.6 1.2-2 3.4-1.9-.7a7.6 7.6 0 0 1-2 1.2L15.8 20h-4l-.3-1.8a7.6 7.6 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.4 7.4 0 0 1 0-2.2L5.6 9.7l2-3.4 1.9.7a7.6 7.6 0 0 1 2-1.2L11.8 4h4l.3 1.8a7.6 7.6 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.4 7.4 0 0 1 0 2.2z"/></svg>Settings</button>
+</nav>
 
 <dialog id="goalEdit">
   <form method="dialog">
@@ -77,14 +92,6 @@
     <h2>Listen through the microphone?</h2>
     <p class="w-lead">For an acoustic piano, voice, guitar or horn. NoteshAIre listens only until you press Stop, turns what it hears into notes on this computer, and saves no audio.</p>
     <div class="row-actions"><span class="grow"></span><button class="ghost" value="cancel">Cancel</button><button class="primary" value="go">Start listening</button></div>
-  </form>
-</dialog>
-<dialog id="settings" class="settings">
-  <form method="dialog">
-    <h2>Settings</h2>
-    <div id="setBody"></div>
-    <p class="credit">Piano sound: Salamander Grand Piano by Alexander Holm (CC-BY 3.0).</p>
-    <div class="row-actions"><button type="button" id="replayTour" class="ghost">Show the intro again</button><span class="grow"></span><button class="primary" value="ok">Done</button></div>
   </form>
 </dialog>
 <datalist id="songNames"></datalist>

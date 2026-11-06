@@ -254,3 +254,20 @@ details.gc summary::-webkit-details-marker { display: none; }
 .micnote { padding: 10px 24px; color: var(--mute); background: var(--raise); border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .micnote[hidden], .micbar[hidden] { display: none; }
 #micAsk, #settings { overflow: hidden; }
+
+/* bottom bar: Home, Stats, Settings */
+main { padding-bottom: 110px; }
+nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; justify-content: center; gap: 6px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
+nav.bottom button { flex: 0 1 140px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 10px; border: 0; background: none; color: var(--faint); font-size: 12px; font-weight: 500; border-radius: 10px; }
+nav.bottom button svg { width: 20px; height: 20px; fill: currentColor; }
+nav.bottom button:hover { color: var(--mute); }
+nav.bottom button.on { color: var(--ink); }
+.view > h2:first-child { margin-bottom: 16px; }
+#view-stats .insight { margin-top: 0; }
+#view-settings .set-row:first-of-type { border-top: 0; }
+.wheel .top text { font-weight: 700; }
+html, body { overflow-x: hidden; }
+.chip { white-space: normal; flex-wrap: wrap; }
+.set-row > div { flex: 1; min-width: 0; }
+.set-row select, .set-row .switch, .set-row button { flex: none; }
