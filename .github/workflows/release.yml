@@ -41,7 +41,10 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm test
-      - run: npx electron-builder --mac --publish always
+      - run: |
+          # no certificate yet: build unsigned instead of reading an empty secret as a file path
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
+          npx electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
