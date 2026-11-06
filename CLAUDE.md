@@ -59,3 +59,7 @@ Windows shows SmartScreen ("More info" -> "Run anyway"), Mac needs "Open Anyway"
 the app's userData folder; nothing leaves the computer. First open shows a one-page tutorial (ui/index.html #welcome).
 Release cadence: bump `version` in package.json, tag, push; batch changes, at most weekly, fixes same day.
 His laptop runs the installed app too (piano-studio mode); `Practice.vbs` / `npm run install-app` is the old setup.
+Repo: https://github.com/MatteoCaruso1/noteshaire (public). Friends' link: https://github.com/MatteoCaruso1/noteshaire/releases/latest
+Mac signing (Developer ID Application, team RAPMF3U34U, valid to 2027-12-06): key, certificate and the secret values are
+in `C:\Users\matte\Documents\NoteshAIre signing\` (never in the repo). The Mac build signs and notarizes once the five repo
+secrets are set; until then it builds unsigned. GitHub's Mac runners sometimes have no capacity: re-push the tag.
