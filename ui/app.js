@@ -276,8 +276,9 @@ function renderLog() {
 
 // ---- goals editor ----
 function goalRow(g) {
+  const counts = COUNTS.filter(([v]) => v !== 'recording' || (info && info.mode === 'piano-studio') || g.counts === 'recording');
   return `<div class="grow-row"><input class="gn" value="${esc(g.name)}" placeholder="Goal"><input class="gh num" type="number" min="0" step="0.25" value="${+(g.minutes / 60).toFixed(2)}" title="Hours">
-    <select class="gc">${COUNTS.map(([v, n]) => `<option value="${v}" ${v === g.counts ? 'selected' : ''}>${n}</option>`).join('')}${data.songs.map((s) => `<option value="song:${esc(s.id)}" ${`song:${s.id}` === g.counts ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    <select class="gc">${counts.map(([v, n]) => `<option value="${v}" ${v === g.counts ? 'selected' : ''}>${n}</option>`).join('')}${data.songs.map((s) => `<option value="song:${esc(s.id)}" ${`song:${s.id}` === g.counts ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
     <button type="button" class="x" title="Remove">×</button></div>`;
 }
 function openGoals() {
@@ -334,12 +335,15 @@ async function status() {
   try {
     const s = await api('/api/status');
     let dot = '', txt = '';
+    const kb = (s.nord || '').split(',')[0].replace(/\s*(MIDI|USB)\s*(\d+)?$/i, '').trim();
     if (s.recording) { dot = 'rec'; txt = `Recording ${mss(s.take_seconds)}`; }
-    else if (s.nord) { dot = 'ok'; txt = 'Nord'; }
-    else if (s.recorder === 'on') { dot = ''; txt = 'Nord unplugged'; }
+    else if (s.nord) { dot = 'ok'; txt = kb.length > 22 ? `${kb.slice(0, 21)}…` : kb || 'Keyboard'; }
+    else if (s.recorder === 'on' && s.error) { dot = 'bad'; txt = 'Keyboard busy'; }
+    else if (s.recorder === 'on') { dot = ''; txt = 'No keyboard'; }
     else if (s.recorder === 'starting' || s.recorder === 'checking') { dot = 'bad'; txt = 'Starting'; }
     else { dot = 'bad'; txt = 'Recorder off'; }
-    $('#status').innerHTML = `<span class="dot ${dot}"></span>${txt}`;
+    $('#status').innerHTML = `<span class="dot ${dot}"></span>${esc(txt)}`;
+    $('#status').title = s.error || s.nord || '';
     if (lastTakes >= 0 && s.takes !== lastTakes && week === thisWeek() && !document.activeElement.matches('input,select')) load();
     lastTakes = s.takes;
   } catch { $('#status').innerHTML = '<span class="dot bad"></span>Offline'; }
@@ -351,5 +355,13 @@ $('#prev').onclick = () => { week = shiftWeek(week, -1); load(); };
 $('#next').onclick = () => { week = shiftWeek(week, 1); load(); };
 try { tab = localStorage.getItem('tab') || 'songs'; } catch {}
 if (!['songs', 'technique', 'noodling', 'log', 'trends'].includes(tab)) tab = 'songs';
+let info = null;
+async function welcome() {
+  info = await api('/api/info');
+  if (!info.tutorialSeen) $('#welcome').showModal();
+}
+$('#welcome').addEventListener('close', () => api('/api/seen', {}));
+$('#help').onclick = () => $('#welcome').showModal();
 week = thisWeek();
+welcome();
 load(); status(); setInterval(status, 3000);

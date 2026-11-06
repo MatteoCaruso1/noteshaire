@@ -21,7 +21,7 @@ header { position: sticky; top: 0; z-index: 5; display: grid; grid-template-colu
 .week button:hover { background: var(--raise); color: var(--ink); }
 .week button:disabled { opacity: .25; cursor: default; background: none; }
 #weekLabel { min-width: 120px; text-align: center; }
-.status { justify-self: end; display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 13px; }
+.status { display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 13px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .dot.ok { background: #3fbf7f; }
 .dot.rec { background: var(--red); box-shadow: 0 0 0 0 rgba(216,52,60,.6); animation: pulse 1.4s infinite; }
@@ -180,3 +180,18 @@ h2.sec + .insight { margin-top: 10px; }
 .cutter .marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink); box-shadow: 0 0 0 3px rgba(236,235,232,.15); pointer-events: none; }
 .cut-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--mute); font-size: 13px; }
 .primary:disabled { opacity: .35; cursor: default; }
+
+.head-r { justify-self: end; display: flex; align-items: center; gap: 12px; }
+.help { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--faint); font-size: 12px; font-weight: 600; }
+.help:hover { color: var(--ink); border-color: #3a3e46; }
+.welcome { width: min(440px, 92vw); padding: 30px 30px 26px; }
+.welcome h1 { font-size: 22px; margin: 14px 0 6px; letter-spacing: .01em; }
+.w-mark img { width: 48px; height: 48px; display: block; border-radius: 11px; }
+.w-lead { color: var(--mute); margin: 0 0 20px; font-size: 14.5px; }
+.w-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 14px; }
+.w-steps li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 10px; color: var(--mute); font-size: 14px; }
+.w-steps li::before { content: counter(s); width: 22px; height: 22px; border-radius: 50%; background: var(--raise); color: var(--ink); font-size: 12px; font-weight: 600; display: grid; place-items: center; }
+.w-steps b { color: var(--ink); font-weight: 600; }
+.w-foot { color: var(--faint); font-size: 13px; margin: 20px 0 18px; }
+.w-go { width: 100%; padding: 10px; font-size: 14px; }
+@media (max-width: 640px) { .head-r { grid-column: 1 / -1; justify-self: start; } }

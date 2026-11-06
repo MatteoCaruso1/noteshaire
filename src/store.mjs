@@ -25,14 +25,20 @@ export const CATS = {
   unnamed: 'Unnamed', free: 'Free play', skip: 'Not practice',
 };
 
-export const DEFAULT_GOALS = [
+// Matteo's (owner 2026-11-05); everyone else starts from DEFAULT_GOALS
+export const OWNER_GOALS = [
   { id: 'technique', name: 'Technique', minutes: 180, counts: 'technique' },
   { id: 'new-standards', name: 'New standards', minutes: 180, counts: 'new-song' },
   { id: 'red-grand-jazz', name: 'Red Grand Jazz', minutes: 120, counts: 'recording' },
   { id: 'new-material', name: 'New material', minutes: 60, counts: 'learning' },
 ];
+export const DEFAULT_GOALS = [
+  { id: 'technique', name: 'Technique', minutes: 120, counts: 'technique' },
+  { id: 'new-songs', name: 'New songs', minutes: 120, counts: 'new-song' },
+  { id: 'new-material', name: 'New material', minutes: 60, counts: 'learning' },
+];
 
-export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), data = process.env.PRACTICE_DATA } = {}) {
+export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), data = process.env.PRACTICE_DATA, defaultGoals = OWNER_GOALS } = {}) {
   const DATA = data || path.join(root, 'practice');
   const F = { songs: path.join(DATA, 'songs.json'), labels: path.join(DATA, 'labels.json'), goals: path.join(DATA, 'goals.json'), ids: path.join(DATA, 'identify.json'), cuts: path.join(DATA, 'cuts.json'), auto: path.join(DATA, 'autocuts.json') };
   fs.mkdirSync(path.join(DATA, 'cache'), { recursive: true });
@@ -226,7 +232,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     const g = readJson(F.goals, { weeks: {} });
     if (g.weeks[week]) return g.weeks[week];
     const earlier = Object.keys(g.weeks).filter((w) => w < week).sort().pop();
-    return earlier ? g.weeks[earlier] : DEFAULT_GOALS;
+    return earlier ? g.weeks[earlier] : defaultGoals;
   }
   function setGoals(week, goals) {
     const g = readJson(F.goals, { weeks: {} });

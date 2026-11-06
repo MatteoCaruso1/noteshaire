@@ -9,6 +9,7 @@ import { analyzeTake, TECH } from '../src/analyze.mjs';
 import { readSmf, writeSmf } from '../src/midi.mjs';
 import { fingerprint, identify, likeness } from '../src/songs.mjs';
 import { openStore } from '../src/store.mjs';
+import { takeKeeper } from '../src/recorder.mjs';
 
 let fails = 0, checks = 0;
 const ok = (cond, msg) => { checks++; if (!cond) { fails++; console.log(`  FAIL ${msg}`); } };
@@ -212,6 +213,33 @@ section('6. one recording, two things (owner 2026-11-06: ii-V-Is through the key
   w = st.week('2026-11-02');
   const after = w.pieces.filter((p) => p.take === '2026-11-06/take-190000').sort((a, b) => a.t0 - b.t0);
   ok(after.length === 2 && after[1].songName === 'All of Me', `the stretch after an 8 s pause was not kept with its song (${after.map((p) => p.songName).join(', ')})`);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+section('7. the built-in recorder (for friends without Piano Studio)');
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'practice-rec-'));
+  const saved = [];
+  const k = takeKeeper({ root, onSaved: (b) => saved.push(b) });
+  const t0 = new Date('2026-11-06T10:00:00').getTime();
+  const song = G.playTune('allofme', { bpm: 130, seed: 81, choruses: ['head'] });
+  const evs = [];
+  for (const n of song.notes) { evs.push([n.t, [0x90, n.note, n.vel]]); evs.push([n.t + n.dur, [0x80, n.note, 0]]); }
+  evs.push([2, [0xb0, 64, 127]], [song.end - 1, [0xb0, 64, 0]]);
+  evs.sort((a, b) => a[0] - b[0]);
+  for (const [t, b] of evs) { k.feed(b, t0 + t * 1000); k.tick(t0 + t * 1000); }
+  k.tick(t0 + (song.end + 5) * 1000);
+  ok(saved.length === 0, 'take closed before 10 s of silence');
+  k.tick(t0 + (song.end + 12) * 1000);
+  ok(saved.length === 1, 'take not saved after 10 s of silence');
+  k.feed([0x90, 60, 80], t0 + 999e3); k.feed([0x80, 60, 0], t0 + 999.2e3); k.tick(t0 + 1020e3);
+  ok(saved.length === 1, 'a single stray key was saved as a take');
+  if (saved[0]) {
+    const m = readSmf(fs.readFileSync(saved[0] + '.mid'));
+    ok(Math.abs(m.notes.length - song.notes.length) <= 1, 'saved take has ' + m.notes.length + ' notes, played ' + song.notes.length);
+    const st = openStore({ root, data: path.join(root, 'practice') });
+    ok(st.week('2026-11-02').total > 50, 'recorded take not read by the week');
+  }
   fs.rmSync(root, { recursive: true, force: true });
 }
 

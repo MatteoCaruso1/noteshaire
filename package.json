@@ -1,15 +1,99 @@
 {
-  "name": "practice-log",
-  "version": "0.1.0",
+  "name": "noteshaire",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Listens to every note played on the Nord and fills weekly practice goals from what was actually played.",
+  "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",
   "scripts": {
-    "start": "node src/server.mjs",
+    "start": "electron .",
+    "server": "node src/server.mjs",
     "test": "node tests/verify.mjs",
+    "icons": "node scripts/make-icon.mjs",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "release": "electron-builder --publish always",
     "install-app": "node src/install.mjs"
   },
   "dependencies": {
+    "@julusian/midi": "^3.8.1",
+    "electron-updater": "^6.8.11",
     "midi-file": "^1.2.4"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "productName": "NoteshAIre",
+  "author": "Matteo Caruso",
+  "main": "electron/main.mjs",
+  "build": {
+    "appId": "com.noteshaire.app",
+    "productName": "NoteshAIre",
+    "copyright": "Matteo Caruso",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "src/**",
+      "ui/**",
+      "build/icon.png",
+      "build/tray.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@julusian/midi/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "NoteshAIre-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NoteshAIre",
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.music",
+      "icon": "build/icon.png",
+      "artifactName": "NoteshAIre-${version}-mac-${arch}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "MatteoCaruso1",
+        "repo": "noteshaire",
+        "releaseType": "release"
+      }
+    ],
+    "npmRebuild": false
   }
 }
