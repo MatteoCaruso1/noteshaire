@@ -1,6 +1,6 @@
 {
   "name": "noteshaire",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",
@@ -55,7 +55,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "NoteshAIre-Setup-${version}.${ext}"
+      "artifactName": "NoteshAIre-Windows.${ext}"
     },
     "nsis": {
       "oneClick": true,
@@ -70,26 +70,25 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "universal"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "universal"
           ]
         }
       ],
       "category": "public.app-category.music",
       "icon": "build/icon.png",
-      "artifactName": "NoteshAIre-${version}-mac-${arch}.${ext}",
+      "artifactName": "NoteshAIre-Mac.${ext}",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": true
+      "notarize": true,
+      "x64ArchFiles": "**/node_modules/@julusian/midi/prebuilds/**"
     },
     "publish": [
       {

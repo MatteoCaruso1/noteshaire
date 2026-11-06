@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download NoteshAIre</title>
+<meta name="description" content="Practice goals that fill up from what you actually play. Free for Mac and Windows.">
+<link rel="icon" href="icon.png">
+<style>
+  :root { --bg: #0e0f11; --ink: #ecebe8; --mute: #8b8f97; --faint: #5a5e66; --line: #1f2126; --raise: #15171a; --red: #d8343c; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 16px/1.5 -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: grid; place-items: center; padding: 40px 16px; }
+  main { width: 100%; max-width: 440px; text-align: center; }
+  .icon { width: 72px; height: 72px; border-radius: 17px; display: block; margin: 0 auto 18px; }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: .01em; }
+  .lead { color: var(--mute); margin: 0 0 34px; }
+  .primary { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; padding: 18px 20px; border-radius: 14px;
+    background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 700; font-size: 19px; transition: transform .15s; }
+  .primary:hover { transform: translateY(-1px); }
+  .primary small { font-weight: 500; font-size: 13px; opacity: .65; }
+  .other { display: inline-block; margin-top: 16px; color: var(--mute); font-size: 14.5px; }
+  .other a { color: var(--ink); }
+  .steps { text-align: left; margin: 38px 0 0; padding: 22px 22px 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--raise); }
+  .steps h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin: 0 0 14px; font-weight: 600; }
+  .steps ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 8px; margin-bottom: 16px; color: var(--mute); font-size: 15px; }
+  .steps li::before { content: counter(s); width: 22px; height: 22px; border-radius: 50%; background: #22252a; color: var(--ink); font-size: 12px; font-weight: 600; display: grid; place-items: center; margin-top: 1px; }
+  .steps b { color: var(--ink); font-weight: 600; }
+  .note { color: var(--faint); font-size: 13.5px; margin-top: 26px; }
+  .phone { color: var(--mute); background: var(--raise); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 22px; font-size: 14.5px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <img class="icon" src="icon.png" alt="">
+  <h1>NoteshAIre</h1>
+  <p class="lead">Practice goals that fill up from what you actually play.</p>
+
+  <p class="phone" id="phone" hidden>Open this page on your Mac or Windows computer to download.</p>
+
+  <a class="primary" id="main" href="https://github.com/MatteoCaruso1/noteshaire/releases/latest/download/NoteshAIre-Mac.dmg">
+    <span id="mainLabel">Download for Mac</span><small>Free</small>
+  </a>
+  <div class="other" id="other">On Windows? <a id="otherLink" href="https://github.com/MatteoCaruso1/noteshaire/releases/latest/download/NoteshAIre-Windows.exe">Download for Windows</a></div>
+
+  <section class="steps" id="stepsMac">
+    <h2>After it downloads</h2>
+    <ol>
+      <li><span><b>Open the downloaded file</b> (NoteshAIre-Mac).</span></li>
+      <li><span><b>Drag NoteshAIre into Applications.</b></span></li>
+      <li><span><b>Open NoteshAIre</b> from Applications and plug in your keyboard.</span></li>
+    </ol>
+  </section>
+  <section class="steps" id="stepsWin" hidden>
+    <h2>After it downloads</h2>
+    <ol>
+      <li><span><b>Open the downloaded file</b> (NoteshAIre-Windows).</span></li>
+      <li><span>If Windows says <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>.</span></li>
+      <li><span><b>Plug in your keyboard.</b> NoteshAIre opens by itself.</span></li>
+    </ol>
+  </section>
+
+  <p class="note">You need a keyboard or digital piano connected by USB. Free, and nothing leaves your computer.</p>
+</main>
+<script>
+  // show the right download first: Windows visitors get the Windows button, everyone else the Mac one
+  const MAC = 'https://github.com/MatteoCaruso1/noteshaire/releases/latest/download/NoteshAIre-Mac.dmg';
+  const WIN = 'https://github.com/MatteoCaruso1/noteshaire/releases/latest/download/NoteshAIre-Windows.exe';
+  const ua = navigator.userAgent, plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  const isWin = /win/i.test(plat) || /Windows/.test(ua);
+  const isPhone = /Android|iPhone|iPod/.test(ua) || (/iPad/.test(ua));
+  function set(win) {
+    document.getElementById('main').href = win ? WIN : MAC;
+    document.getElementById('mainLabel').textContent = win ? 'Download for Windows' : 'Download for Mac';
+    document.getElementById('other').innerHTML = win ? 'On a Mac? <a href="#" id="otherLink">Download for Mac</a>' : 'On Windows? <a href="#" id="otherLink">Download for Windows</a>';
+    document.getElementById('stepsWin').hidden = !win;
+    document.getElementById('stepsMac').hidden = win;
+    // the small link switches the page to the other computer and starts that download
+    document.getElementById('otherLink').onclick = (e) => { e.preventDefault(); set(!win); location.href = win ? MAC : WIN; };
+  }
+  set(isWin);
+  if (isPhone) document.getElementById('phone').hidden = false;
+</script>
+</body>
+</html>

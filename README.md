@@ -5,12 +5,10 @@ actually played: scales and drills, songs (named once, recognised after), licks 
 
 ## Get it
 
-**[Download the latest version](https://github.com/MatteoCaruso1/noteshaire/releases/latest)**
+**[Download NoteshAIre](https://matteocaruso1.github.io/noteshaire/)** (one button: it picks Mac or Windows for you)
 
-- **Windows:** download `NoteshAIre-Setup-….exe` and open it. Windows may say "Windows protected your PC": press
-  **More info**, then **Run anyway** (the app is not signed with a paid certificate yet).
-- **Mac:** download the `.dmg` for your Mac (`arm64` for Apple chips M1 and later, `x64` for Intel), drag NoteshAIre to
-  Applications and open it. If macOS blocks it: System Settings → Privacy & Security → **Open Anyway**.
+- **Mac:** open the downloaded file, drag NoteshAIre into Applications, open it.
+- **Windows:** open the downloaded file. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
 
 You need a keyboard or digital piano with a USB (MIDI) connection. Plug it in and the dot at the top of the app turns
 green. NoteshAIre starts with your computer and keeps listening from the tray (menu bar on a Mac) when its window is
