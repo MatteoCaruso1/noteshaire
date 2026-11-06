@@ -12,7 +12,8 @@ jobs:
   draft:
     runs-on: ubuntu-latest
     steps:
-      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "NoteshAIre ${GITHUB_REF_NAME#v}" --notes "Download the Windows installer (.exe) or the Mac app (.dmg: arm64 for Apple chips, x64 for Intel). Setup: https://github.com/$GITHUB_REPOSITORY#get-it"
+      - run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "NoteshAIre ${GITHUB_REF_NAME#v}" --notes "Download the Windows installer (.exe) or the Mac app (.dmg; arm64 for Apple chips, x64 for Intel). Setup steps: https://github.com/$GITHUB_REPOSITORY#get-it"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   windows:
