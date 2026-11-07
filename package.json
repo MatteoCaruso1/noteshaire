@@ -1,6 +1,6 @@
 {
   "name": "noteshaire",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "type": "module",
   "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",

@@ -15,6 +15,7 @@
   .icon { width: 72px; height: 72px; border-radius: 17px; display: block; margin: 0 auto 18px; }
   h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: .01em; }
   .lead { color: var(--mute); margin: 0 0 34px; }
+  .works { color: var(--ink); font-size: 14.5px; }
   .primary { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; padding: 18px 20px; border-radius: 14px;
     background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 700; font-size: 19px; transition: transform .15s; }
   .primary:hover { transform: translateY(-1px); }
@@ -36,7 +37,7 @@
 <main>
   <img class="icon" src="icon.png" alt="">
   <h1>NoteshAIre</h1>
-  <p class="lead">Practice goals that fill up from what you actually play.</p>
+  <p class="lead">Practice goals that fill up from what you actually play.<br><span class="works">Digital piano, acoustic piano, guitar, voice, sax and more.</span></p>
 
   <p class="phone" id="phone" hidden>Open this page on your Mac or Windows computer to download.</p>
 
@@ -50,7 +51,7 @@
     <ol>
       <li><span><b>Open the downloaded file</b> (NoteshAIre-Mac).</span></li>
       <li><span><b>Drag NoteshAIre into Applications.</b></span></li>
-      <li><span><b>Open NoteshAIre</b> from Applications and plug in your keyboard.</span></li>
+      <li><span><b>Open NoteshAIre</b> from Applications. Plug in your digital piano, or press <b>Listen</b> for any other instrument or your voice.</span></li>
     </ol>
   </section>
   <section class="steps" id="stepsWin" hidden>
@@ -58,11 +59,11 @@
     <ol>
       <li><span><b>Open the downloaded file</b> (NoteshAIre-Windows).</span></li>
       <li><span>If Windows says <b>"Windows protected your PC"</b>, click <b>More info</b>, then <b>Run anyway</b>.</span></li>
-      <li><span><b>Plug in your keyboard.</b> NoteshAIre opens by itself.</span></li>
+      <li><span><b>NoteshAIre opens by itself.</b> Plug in your digital piano, or press <b>Listen</b> for any other instrument or your voice.</span></li>
     </ol>
   </section>
 
-  <p class="note">You need a keyboard or digital piano connected by USB. Free, and nothing leaves your computer.</p>
+  <p class="note">A digital piano connects by USB; everything else is heard through your computer's microphone, only while you press Listen. Free, and nothing leaves your computer.</p>
 </main>
 <script>
   // show the right download first: Windows visitors get the Windows button, everyone else the Mac one

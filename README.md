@@ -1,7 +1,8 @@
 # NoteshAIre
 
-Set what you want to practise this week. Play. NoteshAIre listens to your keyboard and fills the bars from what you
-actually played: scales and drills, songs (named once, recognised after), licks and noodling, keys you skip.
+Set what you want to practise this week. Play. NoteshAIre listens and fills the bars from what you actually played:
+scales and drills, songs (named once, recognised after), licks and noodling, keys you skip. For digital pianos (by USB)
+and, through the microphone while you press Listen, acoustic pianos, guitar, voice, sax and more.
 
 ## Get it
 
@@ -10,8 +11,8 @@ actually played: scales and drills, songs (named once, recognised after), licks 
 - **Mac:** open the downloaded file, drag NoteshAIre into Applications, open it.
 - **Windows:** open the downloaded file. If Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
 
-You need a keyboard or digital piano with a USB (MIDI) connection. Plug it in and the dot at the top of the app turns
-green. NoteshAIre starts with your computer and keeps listening from the tray (menu bar on a Mac) when its window is
+A digital piano connects by USB: plug it in and the dot at the top of the app turns green. Any other instrument, or
+your voice: press Listen. NoteshAIre hears it through the microphone only until you press Stop, and saves no audio. NoteshAIre starts with your computer and keeps listening from the tray (menu bar on a Mac) when its window is
 closed. Everything stays on your computer; nothing is sent anywhere.
 
 ## Updates

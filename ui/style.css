@@ -271,3 +271,4 @@ html, body { overflow-x: hidden; }
 .chip { white-space: normal; flex-wrap: wrap; }
 .set-row > div { flex: 1; min-width: 0; }
 .set-row select, .set-row .switch, .set-row button { flex: none; }
+.w-works { color: var(--ink); font-size: 13.5px; margin: -12px 0 20px; padding: 8px 12px; border-radius: 10px; background: var(--raise); }
