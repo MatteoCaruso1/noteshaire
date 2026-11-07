@@ -390,7 +390,7 @@ function scheduleNotes(notes, id, btn, limit) {
     for (const x of SAMPLES) if (Math.abs(x.note - note) < Math.abs(smp.note - note)) smp = x;
     const src = audio.createBufferSource(), g = audio.createGain();
     src.buffer = smp.buffer; src.playbackRate.value = 2 ** ((note - smp.note) / 12);
-    const at = t0 + t, off = at + Math.max(0.12, Math.min(dur, 8)), peak = Math.pow(vel / 127, 1.6) * 0.9;
+    const at = t0 + t, off = at + Math.max(0.12, Math.min(dur, 12)), peak = Math.pow(vel / 127, 1.6) * 0.75;
     g.gain.setValueAtTime(peak, at); g.gain.setValueAtTime(peak, off); g.gain.exponentialRampToValueAtTime(0.0005, off + 0.35);
     src.connect(g); g.connect(out); src.start(at); src.stop(off + 0.4);
     nodes.push(src);
@@ -531,9 +531,7 @@ window.addEventListener('resize', () => document.querySelectorAll('.hint').forEa
 
 function renderSettings() {
   const own = info.mode === 'piano-studio';
-  $('#setBody').innerHTML = own
-    ? '<div class="set-row"><div><b>Keep recordings</b><div class="meta">Always on here: Piano Studio uses them for your videos.</div></div></div>'
-    : `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.</div></div>
+  $('#setBody').innerHTML = `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.${own ? ' Takes in a Piano Studio set are always kept.' : ''}</div></div>
        <input type="checkbox" id="keepRec" class="switch" ${info.keepRecordings ? 'checked' : ''}></label>`;
   $('#setBody').insertAdjacentHTML('afterbegin', `<label class="set-row"><div><b>I play</b><div class="meta">Keyboard players can plug in by USB. Everyone can use Listen.</div></div>
     <select id="instrument" class="mini">${[['piano', 'Piano / keyboard'], ['guitar', 'Guitar'], ['voice', 'Voice'], ['wind', 'Sax / brass / wind'], ['other', 'Something else']].map(([v, n]) => `<option value="${v}" ${info.instrument === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`);

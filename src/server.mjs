@@ -95,7 +95,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
     catch (e) { log(`[analyse] ${e.stack || e.message}`); }
   };
   timers.push(setInterval(warmUp, 30e3)); setTimeout(warmUp, 2000);
-  const prune = () => { if (mode === 'builtin' && settings().keepRecordings === false) { const n = store.prune(7); if (n) log(`[recordings] deleted ${n} older than 7 days (keep recordings is off)`); } };
+  const prune = () => { if (settings().keepRecordings === false) { const n = store.prune(7); if (n) log(`[recordings] deleted ${n} older than 7 days (keep recordings is off)`); } };
   timers.push(setInterval(prune, 6 * 3600e3)); setTimeout(prune, 60e3);
   timers.push(setInterval(() => { if (rec.recording) rec.lastPlayed = Date.now(); }, 5000));
 
@@ -150,7 +150,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
       if (u.pathname === '/api/seen') { fs.writeFileSync(settingsFile, JSON.stringify({ ...settings(), tutorialSeen: true })); return send(res, 200, { ok: true }); }
       if (u.pathname === '/api/settings') {
         const next = { ...settings() };
-        if (typeof b.keepRecordings === 'boolean' && mode === 'builtin') next.keepRecordings = b.keepRecordings;
+        if (typeof b.keepRecordings === 'boolean') next.keepRecordings = b.keepRecordings;
         if (typeof b.guideDone === 'boolean') next.guideDone = b.guideDone;
       if (['piano', 'guitar', 'voice', 'wind', 'other'].includes(b.instrument)) next.instrument = b.instrument;
         fs.writeFileSync(settingsFile, JSON.stringify(next));

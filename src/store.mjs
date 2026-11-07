@@ -466,12 +466,25 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     writeJson(F.songs, db);
     return s;
   }
+  /** notes as they sound: a key released while the sustain pedal is down rings until the pedal lifts (at most 12 s),
+   *  and stops early if the same key is struck again */
+  function sounding(notes, pedal = []) {
+    const ped = [...pedal].sort((a, b) => a.t - b.t);
+    const downAt = (t) => { let d = false; for (const p of ped) { if (p.t > t) break; d = p.down; } return d; };
+    const upAfter = (t) => { const u = ped.find((p) => !p.down && p.t > t); return u ? u.t : t + 12; };
+    const out = notes.map((n) => { const off = n.t + n.dur; return { ...n, dur: (downAt(off) ? Math.min(upAfter(off), off + 12) : off) - n.t }; });
+    const next = new Map();
+    for (let i = out.length - 1; i >= 0; i--) { const n = out[i], later = next.get(n.note); if (later !== undefined && n.t + n.dur > later) n.dur = Math.max(0.05, later - n.t); next.set(n.note, n.t); }
+    return out;
+  }
+
   /** keep recordings off: delete recordings older than `days` (their analysis stays, so the stats stay). Makes sure each
    *  take is analysed first. Returns how many takes were removed. */
   function prune(days) {
     let n = 0;
+    const used = new Set(filmed().map((g) => g.take));
     for (const t of takes()) {
-      if (!t.file || Date.now() - t.start_ms < days * 864e5) continue;
+      if (!t.file || used.has(t.id) || Date.now() - t.start_ms < days * 864e5) continue;
       try { analysis(t); } catch { continue; }
       for (const ext of ['.mid', '.json']) try { fs.unlinkSync(t.file.replace(/\.mid$/, ext)); } catch {}
       n++;
@@ -508,7 +521,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     if (!p) return null;
     const m = takeNotes(take);
     if (!m) return null;
-    return m.notes.filter((n) => n.t >= p.t0 && n.t < p.t1).map((n) => [+(n.t - p.t0).toFixed(3), n.note, +n.dur.toFixed(3), n.vel]);
+    return sounding(m.notes, m.pedal).filter((n) => n.t >= p.t0 && n.t < p.t1).map((n) => [+(n.t - p.t0).toFixed(3), n.note, +n.dur.toFixed(3), n.vel]);
   }
 
   return { root, DATA, takes, allPieces, week, trends, cut, join, prune, getSession, setSession, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };

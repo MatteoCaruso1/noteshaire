@@ -89,4 +89,7 @@ arpeggios, lick drill, swing and ballad tunes; a tune heard through the mic matc
 ~4x faster than real time. Not yet measured on a real room/real piano/laptop mic. Settings: "I play" (piano, guitar,
 voice, wind, other): only hides piano-only feel tags for now. Drums: no pitch, not supported. Packaging: asar off (the
 worker cannot load modules from an asar); Mac Info.plist has NSMicrophoneUsageDescription and the audio-input
-entitlement. Playback uses the Salamander Grand Piano samples (ui/piano, CC-BY 3.0 Alexander Holm, credited in Settings).
+entitlement. Playback uses the Salamander Grand Piano samples (ui/piano, CC-BY 3.0 Alexander Holm, credited in Settings),
+with the sustain pedal applied (store `sounding`: a key under the pedal rings until it lifts, a re-struck key cuts it).
+Listening sessions play back their transcribed notes on that piano (no audio is kept). Keep recordings works everywhere;
+it never deletes a take a Piano Studio set uses.

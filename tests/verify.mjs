@@ -286,5 +286,30 @@ section('8. noodling, session goals, keep recordings off (owner 2026-11-06)');
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+section('9. playback holds notes under the pedal; filmed takes survive keep-recordings off');
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'practice-s9-'));
+  const dir = path.join(root, 'midi', '2026-10-01'); fs.mkdirSync(dir, { recursive: true });
+  // a chord struck, keys up after 0.3 s, pedal down the whole time and up at 3 s; then the same key struck again at 2 s
+  const notes = [{ t: 0, dur: 0.3, note: 60, vel: 80 }, { t: 0, dur: 0.3, note: 64, vel: 80 }, { t: 2, dur: 0.3, note: 60, vel: 80 }];
+  for (let k = 0; k < 20; k++) notes.push({ t: 4 + k * 0.5, dur: 0.3, note: 67 + (k % 5), vel: 70 });
+  fs.writeFileSync(path.join(dir, 'take-100000.mid'), writeSmf(notes, [{ t: 0, down: true }, { t: 3, down: false }]));
+  fs.writeFileSync(path.join(dir, 'take-100000.json'), JSON.stringify({ start_ms: new Date('2026-10-01T10:00:00').getTime() }));
+  fs.writeFileSync(path.join(dir, 'take-110000.mid'), writeSmf(notes));
+  fs.writeFileSync(path.join(dir, 'take-110000.json'), JSON.stringify({ start_ms: new Date('2026-10-01T11:00:00').getTime() }));
+  fs.mkdirSync(path.join(root, 'sets', 's'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'sets', 's', 'set.json'), JSON.stringify({ title: 'S', segments: [{ take: '2026-10-01/take-100000', t0: 0, t1: 15, name: 'X' }] }));
+  const st = openStore({ root, data: path.join(root, 'practice') });
+  const piece = st.allPieces().find((p) => p.take === '2026-10-01/take-100000');
+  const pn = st.pieceNotes(piece.id);
+  const e = pn.find((n) => n[1] === 64), c = pn.find((n) => n[1] === 60);
+  console.log('  E held ' + e[2] + ' s (key up at 0.3, pedal up at 3); first C cut to ' + c[2] + ' s by the C struck again at 2');
+  ok(Math.abs(e[2] - 3) < 0.05, 'a key under the pedal did not ring until the pedal lifted');
+  ok(Math.abs(c[2] - 2) < 0.05, 'a key struck again did not cut the one still ringing');
+  const n = st.prune(0);
+  ok(n === 1 && fs.existsSync(path.join(dir, 'take-100000.mid')) && !fs.existsSync(path.join(dir, 'take-110000.mid')), 'keep recordings off deleted a take a Piano Studio set uses (or kept the other)');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 console.log(`\n${fails ? `${fails} of ${checks} checks FAILED` : `all ${checks} checks passed`}`);
 process.exit(fails ? 1 : 0);
