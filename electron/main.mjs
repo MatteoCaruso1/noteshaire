@@ -1,16 +1,22 @@
-﻿// NoteshAIre desktop app: one window over the local server, a tray icon that keeps listening when the window is closed,
+// NoteshAIre desktop app: one window over the local server, a tray icon that keeps listening when the window is closed,
 // starts with the computer (hidden), updates itself from GitHub Releases when nothing is being recorded.
-import { app, BrowserWindow, Tray, Menu, shell, nativeImage, Notification, session, systemPreferences } from 'electron';
+import { app, BrowserWindow, Tray, Menu, shell, nativeImage, Notification, session, systemPreferences, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(HERE, '..', 'build', 'icon.png'), TRAY = path.join(HERE, '..', 'build', 'tray.png');
-let win = null, tray = null, srv = null, quitting = false, updateReady = null;
+let win = null, tray = null, srv = null, quitting = false, updateReady = null, wantShow = false;
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// one copy only: a second launch hands over to the running one and stops right here
+if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.on('second-instance', () => show());
+
+// errors go to a log file instead of a crash dialog (userData/main.log)
+const logMain = (...a) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'main.log'), `${new Date().toISOString()} ${a.join(' ')}\n`); } catch {} };
+process.on('uncaughtException', (e) => logMain('[uncaught]', e.stack || e.message));
+process.on('unhandledRejection', (e) => logMain('[unhandled]', (e && e.stack) || e));
 
 const startHidden = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
 const flagFile = () => path.join(app.getPath('userData'), 'app.json');
@@ -18,6 +24,7 @@ const flags = () => { try { return JSON.parse(fs.readFileSync(flagFile(), 'utf8'
 const setFlag = (k, v) => fs.writeFileSync(flagFile(), JSON.stringify({ ...flags(), [k]: v }));
 
 function show() {
+  if (!srv) { wantShow = true; return; } // still starting: the window opens as soon as the server is up
   if (!win) return createWindow();
   if (win.isMinimized()) win.restore();
   win.show(); win.focus();
@@ -100,7 +107,17 @@ app.whenReady().then(async () => {
   const { startServer, detectMode, defaultRoot } = await import('../src/server.mjs');
   const mode = detectMode();
   const root = mode === 'piano-studio' ? defaultRoot(mode) : path.join(app.getPath('userData'), 'data');
-  srv = await startServer({ mode, root, port: 0 });
+  // the server, tried a few times (a busy disk at login can make the first try fail); a start that hangs restarts the app
+  const hang = setTimeout(() => { logMain('[start] the server did not start in 90 s: restarting'); app.relaunch(); app.exit(0); }, 90e3);
+  for (let tries = 1; !srv; tries++) {
+    try { srv = await startServer({ mode, root, port: 0 }); }
+    catch (e) {
+      logMain(`[start] try ${tries}: ${e.stack || e.message}`);
+      if (tries >= 5) { clearTimeout(hang); dialog.showErrorBox('NoteshAIre could not start', `${e.message}\n\nDetails are in ${path.join(app.getPath('userData'), 'main.log')}.`); app.exit(1); return; }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  clearTimeout(hang);
   // the microphone, for listening sessions the person starts, and only for the app's own page
   const own = (url) => String(url || '').startsWith(`http://127.0.0.1:${srv.port}/`);
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
@@ -115,6 +132,7 @@ app.whenReady().then(async () => {
   tray.on('click', show);
   trayMenu();
   createWindow();
+  if (wantShow) show();
   setupUpdates();
 });
 app.on('window-all-closed', (e) => e.preventDefault?.()); // stays in the tray
