@@ -93,3 +93,8 @@ entitlement. Playback uses the Salamander Grand Piano samples (ui/piano, CC-BY 3
 with the sustain pedal applied (store `sounding`: a key under the pedal rings until it lifts, a re-struck key cuts it).
 Listening sessions play back their transcribed notes on that piano (no audio is kept). Keep recordings works everywhere;
 it never deletes a take a Piano Studio set uses.
+
+## Closing the window (owner 2026-11-07: "once I exit the app it should stop listening")
+Closing the window always stops a microphone session. Settings: "Record my keyboard in the background" (default on):
+on = starts with the computer, keeps saving keyboard notes in the tray after the window closes (never the mic);
+off = closing the window quits, no start at login. Never word background keyboard capture as "listening".

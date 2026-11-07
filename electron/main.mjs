@@ -23,6 +23,16 @@ const flagFile = () => path.join(app.getPath('userData'), 'app.json');
 const flags = () => { try { return JSON.parse(fs.readFileSync(flagFile(), 'utf8')); } catch { return {}; } };
 const setFlag = (k, v) => fs.writeFileSync(flagFile(), JSON.stringify({ ...flags(), [k]: v }));
 
+/** "Record my keyboard in the background" (Settings): on by default */
+const settingsPath = () => (srv ? path.join(srv.store.DATA, 'settings.json') : null);
+const background = () => { try { return JSON.parse(fs.readFileSync(settingsPath(), 'utf8')).background !== false; } catch { return true; } };
+function applyBackground() {
+  if (!app.isPackaged) return;
+  const on = background();
+  app.setLoginItemSettings({ openAtLogin: on, openAsHidden: true, args: ['--hidden'] });
+  if (tray) trayMenu();
+}
+
 function show() {
   if (!srv) { wantShow = true; return; } // still starting: the window opens as soon as the server is up
   if (!win) return createWindow();
@@ -42,20 +52,24 @@ function createWindow() {
   // closing the window keeps NoteshAIre listening in the tray
   win.on('close', (e) => {
     if (quitting) return;
-    e.preventDefault(); win.hide();
-    if (!flags().toldTray && Notification.isSupported()) {
-      new Notification({ title: 'NoteshAIre is still listening', body: 'It keeps recording from the tray. Quit it from the tray icon.', icon: ICON }).show();
-      setFlag('toldTray', true);
-    }
+    e.preventDefault();
+    // the microphone never outlives the window
+    win.webContents.executeJavaScript('typeof micStop === "function" ? micStop() : null').catch(() => {}).finally(() => {
+      if (!background()) { quitting = true; app.quit(); return; }
+      win.hide();
+      if (!flags().toldBg && Notification.isSupported()) {
+        new Notification({ title: 'NoteshAIre keeps your keyboard\'s notes', body: 'It records your keyboard in the background, never the microphone. Turn this off in Settings.', icon: ICON }).show();
+        setFlag('toldBg', true);
+      }
+    });
   });
 }
 
 function trayMenu() {
-  const login = app.getLoginItemSettings().openAtLogin;
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open NoteshAIre', click: show },
+    { label: 'Recording your keyboard (not the microphone)', enabled: false },
     { type: 'separator' },
-    { label: 'Start with this computer', type: 'checkbox', checked: login, click: (i) => { app.setLoginItemSettings({ openAtLogin: i.checked, openAsHidden: true, args: ['--hidden'] }); } },
     ...(updateReady ? [{ label: `Restart to update (${updateReady})`, click: () => installUpdate() }] : []),
     ...(macNew ? [{ label: `Download version ${macNew}`, click: () => shell.openExternal(RELEASES) }] : []),
     { label: `Version ${app.getVersion()}`, enabled: false },
@@ -125,8 +139,9 @@ app.whenReady().then(async () => {
     if (process.platform === 'darwin') systemPreferences.askForMediaAccess('microphone').then(cb); else cb(true);
   });
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => perm === 'media' && own(origin + '/'));
-  // first run: start with the computer (the point is that recording never needs remembering)
-  if (app.isPackaged && !flags().loginSet) { app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true, args: ['--hidden'] }); setFlag('loginSet', true); }
+  // start with the computer only while "Record my keyboard in the background" is on; follow the switch when it changes
+  applyBackground();
+  try { fs.watchFile(settingsPath(), { interval: 2000 }, () => applyBackground()); } catch {}
   tray = new Tray(nativeImage.createFromPath(TRAY));
   tray.setToolTip('NoteshAIre');
   tray.on('click', show);

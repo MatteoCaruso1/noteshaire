@@ -126,7 +126,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
         if (!f.startsWith(UI) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return send(res, 404, 'not found', 'text/plain');
         return send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
       }
-      if (u.pathname === '/api/info') { const st = settings(); return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!st.tutorialSeen, guideDone: !!st.guideDone, goalsSet: fs.existsSync(path.join(store.DATA, 'goals.json')), keepRecordings: st.keepRecordings !== false, instrument: st.instrument || 'piano' }); }
+      if (u.pathname === '/api/info') { const st = settings(); return send(res, 200, { mode, version: PKG.version, tutorialSeen: !!st.tutorialSeen, guideDone: !!st.guideDone, goalsSet: fs.existsSync(path.join(store.DATA, 'goals.json')), keepRecordings: st.keepRecordings !== false, instrument: st.instrument || 'piano', background: st.background !== false, app: !!process.versions.electron }); }
       if (u.pathname === '/api/status') return send(res, 200, { recorder: rec.state, nord: rec.nord, recording: rec.recording, take_seconds: rec.take_seconds, error: rec.error || '', takes: store.takes().length });
       if (u.pathname === '/api/week') {
         const w = u.searchParams.get('start');
@@ -153,6 +153,7 @@ export async function startServer({ mode = detectMode(), root = defaultRoot(mode
         if (typeof b.keepRecordings === 'boolean') next.keepRecordings = b.keepRecordings;
         if (typeof b.guideDone === 'boolean') next.guideDone = b.guideDone;
       if (['piano', 'guitar', 'voice', 'wind', 'other'].includes(b.instrument)) next.instrument = b.instrument;
+      if (typeof b.background === 'boolean') next.background = b.background;
         fs.writeFileSync(settingsFile, JSON.stringify(next));
         if (next.keepRecordings === false) prune();
         return send(res, 200, { ok: true });

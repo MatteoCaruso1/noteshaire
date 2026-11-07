@@ -531,11 +531,14 @@ window.addEventListener('resize', () => document.querySelectorAll('.hint').forEa
 
 function renderSettings() {
   const own = info.mode === 'piano-studio';
-  $('#setBody').innerHTML = `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.${own ? ' Takes in a Piano Studio set are always kept.' : ''}</div></div>
+  $('#setBody').innerHTML = (info.app ? `<label class="set-row"><div><b>Record my keyboard in the background</b><div class="meta">On: NoteshAIre starts with your computer and keeps your keyboard's notes after you close the window. Off: closing the window quits it. The microphone is never used in the background.</div></div>
+       <input type="checkbox" id="bgRec" class="switch" ${info.background ? 'checked' : ''}></label>` : '') + `<label class="set-row"><div><b>Keep recordings</b><div class="meta">Listen back to anything you played. Off: recordings are deleted after 7 days; your stats stay.${own ? ' Takes in a Piano Studio set are always kept.' : ''}</div></div>
        <input type="checkbox" id="keepRec" class="switch" ${info.keepRecordings ? 'checked' : ''}></label>`;
   $('#setBody').insertAdjacentHTML('afterbegin', `<label class="set-row"><div><b>I play</b><div class="meta">Keyboard players can plug in by USB. Everyone can use Listen.</div></div>
     <select id="instrument" class="mini">${[['piano', 'Piano / keyboard'], ['guitar', 'Guitar'], ['voice', 'Voice'], ['wind', 'Sax / brass / wind'], ['other', 'Something else']].map(([v, n]) => `<option value="${v}" ${info.instrument === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`);
   $('#instrument').onchange = async (e) => { info.instrument = e.target.value; await api('/api/settings', { instrument: info.instrument }); render(); };
+  const bg = $('#bgRec');
+  if (bg) bg.onchange = async () => { info.background = bg.checked; await api('/api/settings', { background: bg.checked }); };
   const k = $('#keepRec');
   if (k) k.onchange = async () => { info.keepRecordings = k.checked; await api('/api/settings', { keepRecordings: k.checked }); };
 }
