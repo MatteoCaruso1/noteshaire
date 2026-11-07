@@ -1,6 +1,6 @@
 {
   "name": "noteshaire",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "type": "module",
   "description": "Set weekly practice goals; NoteshAIre listens to your keyboard and fills them from what you actually played.",
@@ -43,7 +43,12 @@
       "ui/**",
       "build/icon.png",
       "build/tray.png",
-      "package.json"
+      "package.json",
+      "!node_modules/core-js/**",
+      "!**/*.map",
+      "!**/*.d.ts",
+      "!**/*.md",
+      "!**/{test,tests,__tests__}/**"
     ],
     "win": {
       "target": [
