@@ -267,8 +267,44 @@ nav.bottom button.on { color: var(--ink); }
 #view-stats .insight { margin-top: 0; }
 #view-settings .set-row:first-of-type { border-top: 0; }
 .wheel .top text { font-weight: 700; }
-html, body { overflow-x: hidden; }
+html, body { overflow-x: clip; } /* clip, not hidden: hidden breaks the sticky top bar */
 .chip { white-space: normal; flex-wrap: wrap; }
 .set-row > div { flex: 1; min-width: 0; }
 .set-row select, .set-row .switch, .set-row button { flex: none; }
 .w-works { color: var(--ink); font-size: 13.5px; margin: -12px 0 20px; padding: 8px 12px; border-radius: 10px; background: var(--raise); }
+
+/* bars stay put between pages: always keep room for the scrollbar */
+html { scrollbar-gutter: stable; }
+header { position: sticky; top: 0; }
+/* "What counts" list: tidy, left aligned, one line each */
+.gc-list { width: 250px; padding: 6px; text-align: left; }
+.gc-list label { display: flex; justify-content: flex-start; align-items: center; gap: 10px; padding: 7px 8px; white-space: nowrap; text-align: left; font-size: 13.5px; }
+.gc-list input[type=checkbox] { margin: 0; width: 15px; height: 15px; accent-color: var(--technique); flex: none; }
+/* session editor rows: goal + minutes */
+.grow-row.srow { grid-template-columns: 1fr 92px 28px; }
+.grow-row.srow select, .grow-row.srow input { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); width: 100%; }
+#sessEdit h2 { margin-bottom: 14px; }
+/* trends inside Stats */
+.trends { margin-top: 14px; }
+/* naming cards: two clear steps */
+.ask-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ask-head h2 { margin: 0; color: var(--ink); font-size: 13px; }
+.ask-sub { color: var(--faint); font-size: 13px; }
+.take.ask { display: block; padding: 14px 16px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--gold) 35%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--gold) 5%, var(--raise)); }
+.take.ask:last-child { border-bottom: 1px solid color-mix(in srgb, var(--gold) 35%, var(--line)); }
+.ask-top { display: flex; align-items: center; gap: 12px; }
+.ask-form { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: end; margin-top: 14px; }
+.step { display: grid; gap: 6px; }
+.step .n { display: none; }
+.step .t { font-size: 12px; font-weight: 600; color: var(--mute); text-transform: uppercase; letter-spacing: .06em; }
+.step input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #3a3e46; background: var(--bg); font-size: 15px; outline: none; }
+.step input:focus { border-color: var(--gold); }
+.take.ask.need-name .step input { border-color: color-mix(in srgb, var(--gold) 70%, #3a3e46); }
+.seg.pick.big button { padding: 10px 14px; font-size: 14px; }
+.take.ask.need-pick .seg.pick.big { box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 70%, transparent); border-radius: 9px; }
+.take.ask .save { padding: 10px 18px; font-size: 14px; }
+.take.ask .save:disabled { opacity: .3; cursor: not-allowed; }
+.shake { animation: shake .4s; }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@media (max-width: 640px) { .ask-form { grid-template-columns: 1fr; } }
+#goalEdit, #sessEdit { overflow: visible; }

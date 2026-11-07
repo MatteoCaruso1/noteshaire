@@ -71,26 +71,43 @@ function renderSession() {
       <span class="goal-val num"><b>${hm(i.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
       <div class="bar thin"><div class="fill" style="width:${Math.min(1, pct) * 100}%"></div></div></div>`;
   }).join('');
-  const form = addingSession && open.length ? `<div class="sform"><select class="sg">${open.map((g) => `<option value="${esc(g.id)}" data-left="${left(g)}">${esc(g.name)} · ${left(g)} min left</option>`).join('')}</select>
-      <input class="sm num" type="number" min="5" step="5"><span class="unit">min</span><button class="primary sadd">Add</button><button class="ghost scancel">Cancel</button></div>` : '';
-  el.innerHTML = `<div class="sec-head"><h2>Session goals</h2><span class="sec-tools">${items.length ? '<button class="ghost small send">End session</button>' : ''}${open.length && !addingSession ? '<button class="ghost small snew">+ Add</button>' : ''}</span></div>
-    ${bars}${form}${!items.length && !addingSession ? '<div class="hint-line">Pick a weekly goal to focus on right now.</div>' : ''}`;
-  const snew = $('.snew', el); if (snew) snew.onclick = () => { addingSession = true; renderSession(); };
+  const canAdd = open.length > 0;
+  el.innerHTML = `<div class="sec-head"><h2>Session goals</h2><span class="sec-tools">${items.length ? '<button class="ghost small send">End session</button><button class="edit-goals sedit" title="Edit session goals" aria-label="Edit session goals">✎</button>' : canAdd ? '<button class="ghost small sedit">+ Add</button>' : ''}</span></div>
+    ${bars}${!items.length ? '<div class="hint-line">Pick a weekly goal to focus on right now.</div>' : ''}`;
+  const se = $('.sedit', el); if (se) se.onclick = openSession;
   const send = $('.send', el); if (send) send.onclick = async () => { await api('/api/session', { items: [] }); load(); };
-  const sg = $('.sg', el), sm = $('.sm', el);
-  if (sg) {
-    const setMax = () => { const mx = +sg.selectedOptions[0].dataset.left; sm.max = mx; sm.value = Math.min(30, mx); };
-    sg.onchange = setMax; setMax(); sm.focus();
-    const add = async () => {
-      const mx = +sg.selectedOptions[0].dataset.left, m = Math.min(mx, Math.max(1, Math.round(+sm.value || 0)));
-      addingSession = false;
-      await api('/api/session', { items: [...items.map((i) => ({ goal: i.goal, minutes: i.minutes })), { goal: sg.value, minutes: m }] });
-      load();
-    };
-    $('.sadd', el).onclick = add; sm.onkeydown = (e) => { if (e.key === 'Enter') add(); };
-    $('.scancel', el).onclick = () => { addingSession = false; renderSession(); };
-  }
 }
+/** the session editor: rows of (weekly goal, minutes), minutes capped at what is left of that weekly goal */
+function sessRow(i) {
+  const left = (g) => Math.max(0, Math.round(g.minutes - g.seconds / 60));
+  const goals = data.goals.filter((g) => left(g) > 0 || g.id === i.goal);
+  if (!goals.length) return '';
+  const cur = i.goal || goals[0].id, g0 = data.goals.find((g) => g.id === cur);
+  return `<div class="grow-row srow"><select class="sg">${goals.map((g) => `<option value="${esc(g.id)}" data-left="${left(g)}" ${g.id === cur ? 'selected' : ''}>${esc(g.name)} · ${left(g)} min left</option>`).join('')}</select>
+    <input class="sm num" type="number" min="1" step="5" max="${left(g0)}" value="${i.minutes || Math.min(30, left(g0))}"><button type="button" class="x" title="Remove">×</button></div>`;
+}
+function openSession() {
+  const rows = $('#sessRows'), items = data.session ? data.session.items : [];
+  rows.innerHTML = (items.length ? items.map(sessRow) : [sessRow({})]).join('');
+  const wire = () => {
+    rows.querySelectorAll('.x').forEach((b) => { b.onclick = () => b.parentElement.remove(); });
+    rows.querySelectorAll('.sg').forEach((s) => { s.onchange = () => { const m = s.parentElement.querySelector('.sm'), mx = +s.selectedOptions[0].dataset.left; m.max = mx; if (+m.value > mx) m.value = mx; }; });
+  };
+  wire();
+  // a new row starts on a weekly goal not already in the session
+  $('#addSess').onclick = () => { const used = [...rows.querySelectorAll('.sg')].map((x) => x.value); const next = data.goals.find((g) => !used.includes(g.id) && g.minutes * 60 > g.seconds); rows.insertAdjacentHTML('beforeend', sessRow(next ? { goal: next.id } : {})); wire(); };
+  $('#sessEdit').showModal();
+}
+$('#sessEdit').addEventListener('close', async () => {
+  if ($('#sessEdit').returnValue !== 'save') return;
+  const seen = new Set();
+  const items = [...document.querySelectorAll('#sessRows .srow')].map((r) => {
+    const s = $('.sg', r), mx = +s.selectedOptions[0].dataset.left;
+    return { goal: s.value, minutes: Math.min(Math.max(mx, 1), Math.max(1, Math.round(+$('.sm', r).value || 0))) };
+  }).filter((i) => !seen.has(i.goal) && seen.add(i.goal));
+  await api('/api/session', { items });
+  load();
+});
 
 function renderSummary() {
   const c = data.cats, chips = [`<span class="chip">Played <b class="num">${hm(data.total)}</b></span>`];
@@ -133,28 +150,33 @@ function renderInbox() {
   const box = $('#inbox');
   if (!data.inbox.length) { box.hidden = true; return; }
   box.hidden = false;
-  box.innerHTML = `<h2>Name ${data.inbox.length === 1 ? 'this' : `these ${data.inbox.length}`}</h2>` + data.inbox.map((p) => `
-    <div class="take" data-id="${esc(p.id)}">
-      <button class="play" title="Listen">${PLAY}</button>
-      <div class="meta"><b>${p.guess ? `${esc(p.guess)}?` : p.throughKeys ? 'Through the keys?' : 'Song'}</b><br>${pieceMeta(p)}</div>
-      <div class="name-form">
-        <input placeholder="Song name" list="songNames" value="${esc(drafts[p.id] ? drafts[p.id].name : p.guess || '')}">
-        <span class="seg pick"><button data-s="new" class="${(drafts[p.id] && drafts[p.id].status) !== 'known' ? 'on' : ''}" title="New to my repertoire">New</button><button data-s="known" class="${drafts[p.id] && drafts[p.id].status === 'known' ? 'on' : ''}" title="I already know it">Known</button></span>
-        <button class="primary save">Save</button>
-        ${p.throughKeys ? '<button class="ghost tech">Technique</button>' : ''}
-        <select class="mini" aria-label="Not a song"><option value="">Not a song</option><option value="noodling">Noodling</option><option value="technique">Technique</option><option value="skip">Not practice</option></select>
+  box.innerHTML = `<div class="ask-head"><h2>Help us recognize your tunes</h2><span class="ask-sub">Name each once. After that NoteshAIre knows it.</span></div>` + data.inbox.map((p) => `
+    <div class="take ask" data-id="${esc(p.id)}">
+      <div class="ask-top"><button class="play" title="Listen">${PLAY}</button>
+        <div class="meta">${p.guess ? `<b>Sounds like ${esc(p.guess)}</b><br>` : p.throughKeys ? '<b>Through the keys?</b><br>' : ''}${pieceMeta(p)}</div>
+        <span class="grow"></span>${p.throughKeys ? '<button class="ghost small tech">It was technique</button>' : ''}
+        <select class="mini" aria-label="Not a song"><option value="">Not a song?</option><option value="noodling">Noodling</option><option value="technique">Technique</option><option value="skip">Not practice</option></select></div>
+      <div class="ask-form">
+        <label class="step"><span class="n">1</span><span class="t">Song name</span>
+          <input placeholder="e.g. Autumn Leaves" list="songNames" value="${esc(drafts[p.id] ? drafts[p.id].name : p.guess || '')}"></label>
+        <div class="step"><span class="n">2</span><span class="t">Is it new to you?</span>
+          <span class="seg pick big"><button data-s="new" class="${drafts[p.id] && drafts[p.id].status === 'new' ? 'on' : ''}">New to me</button><button data-s="known" class="${drafts[p.id] && drafts[p.id].status === 'known' ? 'on' : ''}">I know it</button></span></div>
+        <button class="primary save" disabled>Save</button>
       </div></div>`).join('');
   box.querySelectorAll('.take').forEach((row) => {
     const id = row.dataset.id, inp = $('input', row);
     $('.play', row).onclick = (e) => togglePlay(id, e.currentTarget);
     // New / Known is a choice (a song already in the list takes its status); Save (or Enter) names it
-    const keep = () => { drafts[id] = { name: inp.value, status: $('.pick .on', row).dataset.s }; };
+    const status = () => { const on = $('.pick .on', row); return on ? on.dataset.s : null; };
+    const ready = () => { const ok = !!inp.value.trim() && !!status(); $('.save', row).disabled = !ok; row.classList.toggle('need-name', !inp.value.trim()); row.classList.toggle('need-pick', !status()); };
+    const keep = () => { drafts[id] = { name: inp.value, status: status() }; ready(); };
     const pick = (st) => { row.querySelectorAll('.pick button').forEach((b) => b.classList.toggle('on', b.dataset.s === st)); keep(); };
     row.querySelectorAll('.pick button').forEach((b) => { b.onclick = () => pick(b.dataset.s); });
     const match = () => data.songs.find((x) => x.name.toLowerCase() === inp.value.trim().toLowerCase());
     inp.oninput = () => { const m = match(); if (m) pick(m.status); else keep(); };
     if (!drafts[id] && match()) pick(match().status);
-    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } await api('/api/name', { piece: id, name, status: $('.pick .on', row).dataset.s }); delete drafts[id]; load(); };
+    ready();
+    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } if (!status()) { row.querySelector('.pick').classList.add('shake'); setTimeout(() => row.querySelector('.pick').classList.remove('shake'), 500); return; } await api('/api/name', { piece: id, name, status: status() }); delete drafts[id]; load(); };
     $('.save', row).onclick = save;
     inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
     const tb = $('.tech', row); if (tb) tb.onclick = async () => { await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
@@ -164,8 +186,9 @@ function renderInbox() {
 
 function renderTab() {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-  for (const t of ['songs', 'technique', 'noodling', 'log', 'trends']) $(`#tab-${t}`).hidden = t !== tab;
-  ({ songs: renderSongs, technique: renderTechnique, noodling: renderNoodling, log: renderLog, trends: renderTrends })[tab]();
+  for (const t of ['songs', 'technique', 'noodling', 'log']) $(`#tab-${t}`).hidden = t !== tab;
+  ({ songs: renderSongs, technique: renderTechnique, noodling: renderNoodling, log: renderLog })[tab]();
+  if (view === 'stats') renderTrends();
 }
 
 function ago(ms) {
@@ -349,6 +372,8 @@ function openGoals() {
   document.querySelectorAll('.hint').forEach((x) => { x.hidden = true; });
   $('#goalEdit').showModal();
 }
+document.addEventListener('click', (e) => document.querySelectorAll('details.gc[open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; }));
+document.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('details.gc') && e.target.open) document.querySelectorAll('details.gc[open]').forEach((d) => { if (d !== e.target) d.open = false; }); }, true);
 $('#goalEdit').addEventListener('close', async () => {
   document.querySelectorAll('.hint').forEach((x) => { x.hidden = false; });
   if ($('#goalEdit').returnValue !== 'save') return;
@@ -494,7 +519,7 @@ $('#editGoals').onclick = () => openGoals();
 $('#prev').onclick = () => { week = shiftWeek(week, -1); load(); };
 $('#next').onclick = () => { week = shiftWeek(week, 1); load(); };
 try { tab = localStorage.getItem('tab') || 'songs'; } catch {}
-if (!['songs', 'technique', 'noodling', 'log', 'trends'].includes(tab)) tab = 'songs';
+if (!['songs', 'technique', 'noodling', 'log'].includes(tab)) tab = 'songs';
 let info = null;
 async function welcome() {
   info = await api('/api/info');
@@ -553,6 +578,7 @@ function showView(v) {
   document.querySelector('header .week').style.visibility = v === 'settings' ? 'hidden' : '';
   document.querySelectorAll('.hint').forEach((x) => { x.hidden = v !== 'home'; });
   if (v === 'settings' && info) renderSettings();
+  if (v === 'stats' && data) renderTrends();
   window.scrollTo(0, 0);
   try { localStorage.setItem('view', v); } catch {}
 }
