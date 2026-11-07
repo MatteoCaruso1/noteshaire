@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readSmf } from './midi.mjs';
-import { analyzeTake, VERSION, TECH, MAJOR } from './analyze.mjs';
+import { analyzeTake, VERSION, TECH, MAJOR, MINOR } from './analyze.mjs';
 import { fingerprint, identify, likeness, locate, MATCH } from './songs.mjs';
 
 export const SONG_MIN_S = 45;      // a music piece this long is a song to name (shorter is free play)
@@ -43,7 +43,7 @@ const normCat = (c) => (c === 'learning' || c === 'free' ? 'noodling' : c);
 
 export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), data = process.env.PRACTICE_DATA, defaultGoals = OWNER_GOALS } = {}) {
   const DATA = data || path.join(root, 'practice');
-  const F = { songs: path.join(DATA, 'songs.json'), labels: path.join(DATA, 'labels.json'), goals: path.join(DATA, 'goals.json'), ids: path.join(DATA, 'identify.json'), cuts: path.join(DATA, 'cuts.json'), auto: path.join(DATA, 'autocuts.json'), session: path.join(DATA, 'session.json') };
+  const F = { songs: path.join(DATA, 'songs.json'), labels: path.join(DATA, 'labels.json'), goals: path.join(DATA, 'goals.json'), ids: path.join(DATA, 'identify.json'), cuts: path.join(DATA, 'cuts.json'), auto: path.join(DATA, 'autocuts.json'), session: path.join(DATA, 'session.json'), keys: path.join(DATA, 'keys.json') };
   fs.mkdirSync(path.join(DATA, 'cache'), { recursive: true });
 
   const songsDb = () => readJson(F.songs, { songs: [] });
@@ -118,7 +118,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
 
   /** all pieces with their time, category and song, oldest first */
   function allPieces(noAuto = false) {
-    const lab = labels(), db = songsDb(), film = filmed();
+    const lab = labels(), db = songsDb(), film = filmed(), keyFix = readJson(F.keys, {});
     const songs = new Map(db.songs.map((s) => [s.id, s]));
     const out = [];
     for (const take of takes()) {
@@ -126,7 +126,10 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
       try { pieces = analysis(take); } catch (e) { console.error(`[practice] ${take.id}: ${e.message}`); continue; }
       for (const p of pieces) {
         const f = film.filter((g) => g.take === take.id && g.t0 < p.t1 && g.t1 > p.t0);
-        out.push({ ...p, take: take.id, start_ms: take.start_ms + p.t0 * 1000, recording: f.length > 0, filmedAs: f.find((g) => g.include && g.name)?.name || '', label: lab[p.id] || null });
+        // the key he set by hand wins over the one heard
+        const kf = keyFix[p.id];
+        const fix = kf ? { keyRoot: kf.root, keyMode: kf.mode, key: (kf.mode === 'minor' ? MINOR : MAJOR)[kf.root], keyFixed: true } : {};
+        out.push({ ...p, ...fix, take: take.id, start_ms: take.start_ms + p.t0 * 1000, recording: f.length > 0, filmedAs: f.find((g) => g.include && g.name)?.name || '', label: lab[p.id] || null });
       }
     }
     // a song named in Piano Studio becomes a song here, with that take as its first reference
@@ -364,7 +367,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
 
   function slim(p, st, songsById) {
     const s = p.song && songsById.get(p.song);
-    return { id: p.id, take: p.take, t0: p.t0, t1: p.t1, start_ms: p.start_ms, seconds: +(p.t1 - p.t0).toFixed(1), key: p.key, bpm: p.bpm, style: p.style,
+    return { id: p.id, take: p.take, t0: p.t0, t1: p.t1, start_ms: p.start_ms, seconds: +(p.t1 - p.t0).toFixed(1), key: p.key, keyRoot: p.keyRoot, keyMode: p.keyMode, bpm: p.bpm, style: p.style,
       song: p.song, songName: s ? s.name : null, auto: p.auto, guess: p.guess && songsById.get(p.guess) ? songsById.get(p.guess).name : null,
       recording: p.recording, label: p.label, throughKeys: !p.song && p.keysVisited >= 7 && p.t1 - p.t0 >= 90, segs: st.map((x) => ({ cat: x.cat, seconds: +x.seconds.toFixed(1), label: x.label || null, kind: x.kind || null, key: x.key ?? null })) };
   }
@@ -453,6 +456,12 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     writeJson(F.songs, db); writeJson(F.labels, lab);
     return s;
   }
+  /** the key, set by hand ("I played it in Eb"): root 0-11, major or minor */
+  function setKey(pieceId, root, mode) {
+    const k = readJson(F.keys, {});
+    if (!(root >= 0 && root < 12)) delete k[pieceId]; else k[pieceId] = { root: Math.floor(root), mode: mode === 'minor' ? 'minor' : 'major' };
+    writeJson(F.keys, k);
+  }
   function setKind(pieceId, kind) {
     const lab = labels();
     if (!kind) delete lab[pieceId]; else lab[pieceId] = { kind, at: new Date().toISOString() };
@@ -524,7 +533,7 @@ export function openStore({ root = process.env.PRACTICE_ROOT || pianoRoot(), dat
     return sounding(m.notes, m.pedal).filter((n) => n.t >= p.t0 && n.t < p.t1).map((n) => [+(n.t - p.t0).toFixed(3), n.note, +n.dur.toFixed(3), n.vel]);
   }
 
-  return { root, DATA, takes, allPieces, week, trends, cut, join, prune, getSession, setSession, goalsFor, setGoals, nameSong, setKind, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
+  return { root, DATA, takes, allPieces, week, trends, cut, join, prune, getSession, setSession, goalsFor, setGoals, nameSong, setKind, setKey, updateSong, pieceNotes, progress, songs: () => songsDb().songs, weekStart };
 }
 
 export { MAJOR };

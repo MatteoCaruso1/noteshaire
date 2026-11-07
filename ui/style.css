@@ -42,7 +42,29 @@ main { max-width: 860px; margin: 0 auto; padding: 28px 24px 80px; }
 .bar .ticks { position: absolute; inset: 0; background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--tick) - 2px), var(--bg) calc(var(--tick) - 2px) var(--tick)); opacity: .55; }
 .goal.done .bar { box-shadow: 0 0 0 1px var(--gold), 0 0 18px -4px var(--gold); }
 .goal.done .fill { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 70%, var(--gold)), var(--gold)); }
-.goal.done .goal-name::after { content: " ✓"; color: var(--gold); }
+.goal.done .goal-name::after { content: "✓"; color: var(--gold); display: inline-block; margin-left: .35em; }
+
+/* a goal that has just filled up */
+.goal { position: relative; }
+.goal.celebrate .bar { animation: goal-pop .9s cubic-bezier(.2,.8,.2,1); }
+.goal.celebrate .fill::after { content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); animation: goal-shine 1s ease-out .1s both; }
+.goal.celebrate .goal-name::after { animation: tick-pop .6s cubic-bezier(.3,1.6,.5,1) .25s both; }
+.goal.celebrate .pct { animation: pct-flash 1.4s ease-out; }
+.sparks { position: absolute; right: 6px; width: 0; height: 0; pointer-events: none; z-index: 2; }
+.sparks i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--s); box-shadow: 0 0 8px var(--s);
+  animation: spark 1s cubic-bezier(.15,.7,.3,1) var(--d) both; }
+@keyframes goal-pop { 30% { transform: scaleY(1.35); box-shadow: 0 0 0 1px var(--gold), 0 0 30px 2px color-mix(in srgb, var(--gold) 65%, transparent); } }
+@keyframes goal-shine { to { transform: translateX(350%); } }
+@keyframes tick-pop { from { transform: scale(0) rotate(-30deg); opacity: 0; } }
+@keyframes pct-flash { 0%, 45% { color: var(--gold); } }
+@keyframes spark { from { transform: scale(.4); opacity: 1; } 55% { opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.35); opacity: 0; } }
+
+/* this week's total, above the goals */
+.weektime { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 32px; padding: 16px 20px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--raise); }
+.wt-label { color: var(--mute); font-size: 15px; }
+.wt-val { font-size: 26px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
 .pct { margin-left: 8px; color: var(--faint); font-size: 12px; }
 .edit-goals { position: absolute; right: -36px; top: 0; background: none; border: 0; color: var(--faint); width: 28px; height: 28px; border-radius: 8px; }
 .edit-goals:hover { color: var(--ink); background: var(--raise); }
@@ -144,6 +166,8 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .weeks { display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px; height: 160px; align-items: end; }
 .wk { display: grid; grid-template-rows: 1fr auto auto; height: 100%; gap: 4px; text-align: center; }
 .wk .lbl, .wk .min { font-size: 11px; color: var(--faint); }
+.wk .lbl { line-height: 1.25; min-height: 2.5em; } /* room for "Oct 26–" over "Nov 1", so every bar starts on one line */
+.wk .lbl span { white-space: nowrap; }
 .wk.cur .lbl { color: var(--ink); }
 .hitlist { margin-top: 26px; display: grid; gap: 10px; }
 .hitrow { display: grid; grid-template-columns: 160px 1fr; align-items: center; font-size: 13px; color: var(--mute); }
@@ -308,3 +332,17 @@ header { position: sticky; top: 0; }
 @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 @media (max-width: 640px) { .ask-form { grid-template-columns: 1fr; } }
 #goalEdit, #sessEdit { overflow: visible; }
+
+/* Stats: which colour is which, top right */
+.stats-head { align-items: flex-start; gap: 16px; }
+.legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; font-size: 12.5px; color: var(--mute); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+
+/* the key on a naming card: looks like the text around it, opens a menu */
+.keypick { appearance: none; -webkit-appearance: none; background: color-mix(in srgb, var(--ink) 7%, transparent); border: 1px solid transparent; border-radius: 6px;
+  padding: 1px 18px 1px 7px; margin: 0 1px; color: var(--ink); font-size: inherit; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(-45deg, transparent 50%, var(--mute) 50%);
+  background-size: 4px 4px; background-position: right 9px center, right 5px center; background-repeat: no-repeat; }
+.keypick:hover, .keypick:focus { border-color: var(--faint); outline: none; }
+.keypick option, .keypick optgroup { background: var(--raise); color: var(--ink); }

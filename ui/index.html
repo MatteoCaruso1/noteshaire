@@ -22,6 +22,7 @@
 <div id="micnote" class="micnote" hidden></div>
 <main>
  <div id="view-home" class="view">
+  <div class="weektime"><span class="wt-label">Weekly practice time</span><b id="weekTime" class="wt-val num"></b></div>
   <div class="sec-head"><h2>Weekly goals</h2><button class="edit-goals" id="editGoals" title="Edit goals" aria-label="Edit goals">✎</button></div>
   <section id="goals" class="goals"></section>
   <section id="session" class="session"></section>
@@ -39,11 +40,11 @@
   <section id="tab-log" class="tab" hidden></section>
  </div>
  <div id="view-stats" class="view" hidden>
-  <h2>Stats</h2>
+  <div class="sec-head stats-head"><h2>Stats</h2><div id="legend" class="legend"></div></div>
   <div id="insight" class="insight"></div>
   <div id="summary" class="summary"></div>
   <section id="days" class="days"></section>
-  <h2 class="sec">Trends</h2>
+  <h2 class="sec">Week by week</h2>
   <section id="tab-trends" class="trends"></section>
  </div>
  <div id="view-settings" class="view" hidden>
@@ -60,7 +61,7 @@
 </nav>
 
 <dialog id="goalEdit">
-  <form method="dialog">
+  <form method="dialog" novalidate>
     <h2>Weekly goals</h2>
     <div class="grow-row grow-head"><span>Goal</span><span>Hours a week</span><span>What counts</span><span></span></div>
     <div id="goalRows"></div>
@@ -73,7 +74,7 @@
   </form>
 </dialog>
 <dialog id="sessEdit">
-  <form method="dialog">
+  <form method="dialog" novalidate>
     <h2>Session goals</h2>
     <div class="grow-row srow grow-head"><span>Weekly goal</span><span>Minutes</span><span></span></div>
     <div id="sessRows"></div>

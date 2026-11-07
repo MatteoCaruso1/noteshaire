@@ -98,3 +98,12 @@ it never deletes a take a Piano Studio set uses.
 Closing the window always stops a microphone session. Settings: "Record my keyboard in the background" (default on):
 on = starts with the computer, keeps saving keyboard notes in the tray after the window closes (never the mic);
 off = closing the window quits, no start at login. Never word background keyboard capture as "listening".
+
+## Owner notes 2026-11-07 (home, stats, naming)
+Home opens with "Weekly practice time" (the week's total, "X min" / "X h Y min") above the goals. A weekly or session
+goal that fills up gets a short gold glow, a shine and a ring of sparks, once per goal (again if the goal is raised); it
+plays even with Windows animations off (this laptop has them off and he asked for it to be noticeable). Stats: a legend
+top right lists only the colours on screen; Trends is "Week by week", bars labelled "Nov 2–8" / "This week" (a lone
+date read as a day). Saving a name (or Technique / Not a song) stops the take playing; so does any redraw that removes
+its play button. The goal dialogs skip browser number checks (Cancel always works; the save clamps the values).
+Naming cards: the key is a menu (24 keys); a key set by hand is stored in keys.json and wins over the one heard.

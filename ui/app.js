@@ -4,6 +4,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const api = async (p, b) => { const r = await fetch(p, b ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) } : {}); return r.json(); };
 
 const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MINORS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
 const CAT = {
   technique: ['Technique', '--technique'], 'new-song': ['New repertoire', '--new-song'], 'known-song': ['Known songs', '--known-song'],
   noodling: ['Noodling', '--learning'], unnamed: ['Unnamed', '--unnamed'], recording: ['Red Grand Jazz', '--recording'], skip: ['Not practice', '--free'], stray: ['Too short', '--free'],
@@ -16,6 +17,7 @@ const colorOf = (counts) => { const c = (counts || '').split('|')[0]; return CAT
 const hm = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 const mss = (sec) => { const s = Math.round(sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const short = (sec) => { if (sec < 60) return `${Math.round(sec)}s`; const m = Math.round(sec / 60); return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+const minutes = (sec) => { const m = Math.round(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`; };
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayName = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: 'short' });
 const clock = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -34,9 +36,12 @@ function render() {
   const fmtD = (d, m) => d.toLocaleDateString(undefined, m ? { month: 'short', day: 'numeric' } : { day: 'numeric' });
   $('#weekLabel').textContent = s.getMonth() === e.getMonth() ? `${fmtD(s, 1)} – ${fmtD(e)}` : `${fmtD(s, 1)} – ${fmtD(e, 1)}`;
   $('#next').disabled = data.week >= thisWeek();
+  $('#weekTime').textContent = minutes(data.total);
   renderGoals(); renderSession(); renderSummary(); renderDays(); renderInbox();
   $('#songNames').innerHTML = data.songs.map((x) => `<option value="${esc(x.name)}">`).join('');
   renderTab();
+  // a take playing from a card that is gone (named, or the page redrawn) would have no stop button left
+  if (playing && playing.btn && !playing.btn.isConnected) stopPlay();
 }
 
 function daysLeft() {
@@ -49,11 +54,12 @@ function renderGoals() {
     const goal = g.minutes * 60, pct = goal ? g.seconds / goal : 0, w = Math.min(1, pct) * 100;
     const pace = '';
     const tick = g.minutes > 0 ? Math.max(2, (30 / g.minutes) * 100) : 100;
-    return `<div class="goal ${pct >= 1 ? 'done' : ''}" style="--c:var(${colorOf(g.counts)})">
+    return `<div class="goal ${pct >= 1 ? 'done' : ''}" data-cel="w:${data.week}:${esc(g.id)}:${g.minutes}" style="--c:var(${colorOf(g.counts)})">
       <div class="goal-head"><span class="goal-name">${esc(g.name)}</span>
         <span class="goal-val num">${pace}<b>${hm(g.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
       <div class="bar"><div class="fill" style="width:${w}%"></div><div class="ticks" style="--tick:${tick}%"></div></div></div>`;
   }).join('');
+  celebrate($('#goals'));
 }
 
 /** session goals: picked from this week's goals, up to what is left of each; they fill from what is played after the start */
@@ -67,15 +73,35 @@ function renderSession() {
   const open = data.goals.filter((g) => left(g) > 0 && !items.some((i) => i.goal === g.id));
   const bars = items.map((i) => {
     const goal = i.minutes * 60, pct = goal ? i.seconds / goal : 0;
-    return `<div class="goal sgoal ${pct >= 1 ? 'done' : ''}" style="--c:var(${colorOf(i.counts)})"><div class="goal-head"><span class="goal-name">${esc(i.name)}</span>
+    return `<div class="goal sgoal ${pct >= 1 ? 'done' : ''}" data-cel="s:${data.session.started}:${esc(i.goal)}:${i.minutes}" style="--c:var(${colorOf(i.counts)})"><div class="goal-head"><span class="goal-name">${esc(i.name)}</span>
       <span class="goal-val num"><b>${hm(i.seconds)}</b> / ${hm(goal)}<span class="pct">${Math.round(pct * 100)}%</span></span></div>
       <div class="bar thin"><div class="fill" style="width:${Math.min(1, pct) * 100}%"></div></div></div>`;
   }).join('');
   const canAdd = open.length > 0;
   el.innerHTML = `<div class="sec-head"><h2>Session goals</h2><span class="sec-tools">${items.length ? '<button class="ghost small send">End session</button><button class="edit-goals sedit" title="Edit session goals" aria-label="Edit session goals">✎</button>' : canAdd ? '<button class="ghost small sedit">+ Add</button>' : ''}</span></div>
     ${bars}${!items.length ? '<div class="hint-line">Pick a weekly goal to focus on right now.</div>' : ''}`;
+  celebrate(el);
   const se = $('.sedit', el); if (se) se.onclick = openSession;
   const send = $('.send', el); if (send) send.onclick = async () => { await api('/api/session', { items: [] }); load(); };
+}
+/** a goal that has just filled up: the bar glows, a shine runs across it and a few sparks fly, once per goal (again if it is raised) */
+const celebrated = (() => { try { return new Set(JSON.parse(localStorage.getItem('celebrated') || '[]')); } catch { return new Set(); } })();
+function celebrate(el) {
+  if (data.week !== thisWeek()) return;
+  [...el.querySelectorAll('.goal.done[data-cel]')].filter((g) => !celebrated.has(g.dataset.cel)).forEach((g, n) => {
+    celebrated.add(g.dataset.cel);
+    try { localStorage.setItem('celebrated', JSON.stringify([...celebrated].slice(-200))); } catch {}
+    setTimeout(() => {
+      const bar = $('.bar', g), sp = document.createElement('div');
+      sp.className = 'sparks'; sp.style.top = `${bar.offsetTop + bar.offsetHeight / 2}px`;
+      sp.innerHTML = Array.from({ length: 16 }, (_, i) => {
+        const a = (i / 16) * 2 * Math.PI + Math.random() * 0.4, d = 34 + Math.random() * 30;
+        return `<i style="--dx:${(Math.cos(a) * d).toFixed(1)}px;--dy:${(Math.sin(a) * d * 0.8).toFixed(1)}px;--d:${200 + Math.round(Math.random() * 120)}ms;--s:${i % 2 ? 'var(--gold)' : 'var(--c)'}"></i>`;
+      }).join('');
+      g.append(sp); g.classList.add('celebrate');
+      setTimeout(() => { sp.remove(); g.classList.remove('celebrate'); }, 1700);
+    }, 250 + n * 450);
+  });
 }
 /** the session editor: rows of (weekly goal, minutes), minutes capped at what is left of that weekly goal */
 function sessRow(i) {
@@ -84,7 +110,7 @@ function sessRow(i) {
   if (!goals.length) return '';
   const cur = i.goal || goals[0].id, g0 = data.goals.find((g) => g.id === cur);
   return `<div class="grow-row srow"><select class="sg">${goals.map((g) => `<option value="${esc(g.id)}" data-left="${left(g)}" ${g.id === cur ? 'selected' : ''}>${esc(g.name)} · ${left(g)} min left</option>`).join('')}</select>
-    <input class="sm num" type="number" min="1" step="5" max="${left(g0)}" value="${i.minutes || Math.min(30, left(g0))}"><button type="button" class="x" title="Remove">×</button></div>`;
+    <input class="sm num" type="number" min="1" step="1" max="${left(g0)}" value="${i.minutes || Math.min(30, left(g0))}"><button type="button" class="x" title="Remove">×</button></div>`;
 }
 function openSession() {
   const rows = $('#sessRows'), items = data.session ? data.session.items : [];
@@ -129,10 +155,17 @@ function renderSummary() {
   $('#summary').innerHTML = chips.join('');
 }
 
+const STACK = ['technique', 'new-song', 'noodling', 'known-song', 'unnamed']; // the bars' segments, bottom up
+let dayKeys = [], trendKeys = [];
+function renderLegend() {
+  const on = new Set([...dayKeys, ...trendKeys]);
+  $('#legend').innerHTML = STACK.filter((k) => on.has(k)).map((k) => `<span><i style="--c:var(${CAT[k][1]})"></i>${CAT[k][0]}</span>`).join('');
+}
 function renderDays() {
   const days = Object.entries(data.days), tot = (o) => Object.entries(o).filter(([k]) => k !== 'skip').reduce((a, [, v]) => a + v, 0);
   const max = Math.max(900, ...days.map(([, o]) => tot(o)));
-  const today = ymd(new Date()), order = ['technique', 'new-song', 'noodling', 'known-song', 'unnamed'];
+  const today = ymd(new Date()), order = STACK;
+  dayKeys = STACK.filter((k) => days.some(([, o]) => o[k] > 0)); renderLegend();
   $('#days').innerHTML = days.map(([d, o]) => {
     const t = tot(o);
     const segs = order.filter((k) => o[k]).map((k) => `<span title="${CAT[k][0]} ${short(o[k])}" style="--c:var(${CAT[k][1]});height:${(o[k] / max) * 100}%"></span>`).join('');
@@ -142,8 +175,16 @@ function renderDays() {
 
 const PLAY = '<svg viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z"/></svg>', STOP = '<svg viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8"/></svg>';
 const styleOf = (p) => (p.style || []).filter((t) => !info || info.instrument === 'piano' || !['Stride', 'Walking bass'].includes(t));
-function pieceMeta(p) {
-  return [`${dayName(p.start_ms)} ${clock(p.start_ms)}`, mss(p.seconds), p.key, ...styleOf(p)].filter(Boolean).map(esc).join(' · ');
+function pieceMeta(p, keyHtml) {
+  const parts = [`${dayName(p.start_ms)} ${clock(p.start_ms)}`, mss(p.seconds), p.key, ...styleOf(p)].filter(Boolean).map(esc);
+  if (keyHtml) parts.splice(2, 0, keyHtml);
+  return parts.join(' · ');
+}
+/** the key heard, as a small menu: he can put it right before naming the take */
+function keyPick(p) {
+  const cur = p.keyRoot == null ? '' : `${p.keyMode === 'minor' ? 'm' : 'M'}${p.keyRoot}`;
+  const opt = (v, t) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`;
+  return `<select class="keypick" title="Key: change it if it is wrong" aria-label="Key">${cur ? '' : opt('', 'Key?')}<optgroup label="Major">${KEYS.map((k, i) => opt(`M${i}`, k)).join('')}</optgroup><optgroup label="Minor">${MINORS.map((k, i) => opt(`m${i}`, k)).join('')}</optgroup></select>`;
 }
 const drafts = {}; // piece id -> { name, status } typed but not saved yet
 function renderInbox() {
@@ -153,7 +194,7 @@ function renderInbox() {
   box.innerHTML = `<div class="ask-head"><h2>Help us recognize your tunes</h2><span class="ask-sub">Name each once. After that NoteshAIre knows it.</span></div>` + data.inbox.map((p) => `
     <div class="take ask" data-id="${esc(p.id)}">
       <div class="ask-top"><button class="play" title="Listen">${PLAY}</button>
-        <div class="meta">${p.guess ? `<b>Sounds like ${esc(p.guess)}</b><br>` : p.throughKeys ? '<b>Through the keys?</b><br>' : ''}${pieceMeta(p)}</div>
+        <div class="meta">${p.guess ? `<b>Sounds like ${esc(p.guess)}</b><br>` : p.throughKeys ? '<b>Through the keys?</b><br>' : ''}${pieceMeta({ ...p, key: null }, keyPick(p))}</div>
         <span class="grow"></span>${p.throughKeys ? '<button class="ghost small tech">It was technique</button>' : ''}
         <select class="mini" aria-label="Not a song"><option value="">Not a song?</option><option value="noodling">Noodling</option><option value="technique">Technique</option><option value="skip">Not practice</option></select></div>
       <div class="ask-form">
@@ -176,11 +217,12 @@ function renderInbox() {
     inp.oninput = () => { const m = match(); if (m) pick(m.status); else keep(); };
     if (!drafts[id] && match()) pick(match().status);
     ready();
-    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } if (!status()) { row.querySelector('.pick').classList.add('shake'); setTimeout(() => row.querySelector('.pick').classList.remove('shake'), 500); return; } await api('/api/name', { piece: id, name, status: status() }); delete drafts[id]; load(); };
+    const save = async () => { const name = inp.value.trim(); if (!name) { inp.focus(); return; } if (!status()) { row.querySelector('.pick').classList.add('shake'); setTimeout(() => row.querySelector('.pick').classList.remove('shake'), 500); return; } stopPlay(); await api('/api/name', { piece: id, name, status: status() }); delete drafts[id]; load(); };
     $('.save', row).onclick = save;
     inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
-    const tb = $('.tech', row); if (tb) tb.onclick = async () => { await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
-    $('select', row).onchange = async (e) => { if (e.target.value) { await api('/api/kind', { piece: id, kind: e.target.value }); load(); } };
+    const kp = $('.keypick', row); if (kp) kp.onchange = async () => { const v = kp.value; if (!v) return; await api('/api/key', { piece: id, root: +v.slice(1), mode: v[0] === 'm' ? 'minor' : 'major' }); const p = data.inbox.find((x) => x.id === id); if (p) { p.keyRoot = +v.slice(1); p.keyMode = v[0] === 'm' ? 'minor' : 'major'; } };
+    const tb = $('.tech', row); if (tb) tb.onclick = async () => { stopPlay(); await api('/api/kind', { piece: id, kind: 'technique' }); load(); };
+    $('select.mini', row).onchange = async (e) => { if (e.target.value) { stopPlay(); await api('/api/kind', { piece: id, kind: e.target.value }); load(); } };
   });
 }
 
@@ -265,9 +307,16 @@ async function renderTrends() {
   const el = $('#tab-trends');
   el.innerHTML = '<div class="empty">…</div>';
   const t = await api('/api/trends');
-  const max = Math.max(1800, ...t.map((w) => w.total)), order = ['technique', 'new-song', 'noodling', 'known-song', 'unnamed'];
-  const label = (w) => new Date(`${w}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const bars = t.map((w) => `<div class="wk ${w.week === data.week ? 'cur' : ''}" title="${label(w.week)}: ${short(w.total)}"><div class="stack">${order.filter((k) => w.cats[k]).map((k) => `<span style="--c:var(${CAT[k][1]});height:${(w.cats[k] / max) * 100}%"></span>`).join('')}</div><div class="lbl">${label(w.week)}</div><div class="min num">${w.total >= 60 ? short(w.total) : ''}</div></div>`).join('');
+  const max = Math.max(1800, ...t.map((w) => w.total)), order = STACK;
+  trendKeys = STACK.filter((k) => t.some((w) => w.cats[k] > 0)); renderLegend();
+  // a bar is a week: label it "Nov 2–8" ("This week" for the current one), never one date that reads as a day
+  const label = (w) => {
+    const s = new Date(`${w}T12:00:00`), e = new Date(s); e.setDate(e.getDate() + 6);
+    const md = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return s.getMonth() === e.getMonth() ? `${md(s)}–${e.getDate()}` : `${md(s)}–${md(e)}`;
+  };
+  const lbl = (w) => w === thisWeek() ? 'This week' : label(w).split('–').map((x, i) => `<span>${x}${i ? '' : '–'}</span>`).join('<wbr>'); // breaks only at the dash
+  const bars = t.map((w) => `<div class="wk ${w.week === data.week ? 'cur' : ''}" title="${label(w.week)}: ${short(w.total)}"><div class="stack">${order.filter((k) => w.cats[k]).map((k) => `<span style="--c:var(${CAT[k][1]});height:${(w.cats[k] / max) * 100}%"></span>`).join('')}</div><div class="lbl">${lbl(w.week)}</div><div class="min num">${w.total >= 60 ? short(w.total) : ''}</div></div>`).join('');
   const names = [...new Set(t.flatMap((w) => w.goals.map((g) => g.name)))];
   const hits = names.map((n) => `<div class="hitrow"><span>${esc(n)}</span><span class="hits">${t.map((w) => { const g = w.goals.find((x) => x.name === n); const p = g ? Math.min(1, g.pct) : 0; return `<i title="${label(w.week)} ${g ? Math.round(g.pct * 100) + '%' : ''}" style="--p:${Math.round(p * 100)}%;--c:var(${colorOf(g && g.counts)})" class="${g && g.pct >= 1 ? 'hit' : ''}"></i>`; }).join('')}</span></div>`).join('');
   el.innerHTML = `<div class="weeks">${bars}</div><div class="hitlist">${hits}</div>`;
@@ -420,7 +469,7 @@ function scheduleNotes(notes, id, btn, limit) {
     src.connect(g); g.connect(out); src.start(at); src.stop(off + 0.4);
     nodes.push(src);
   }
-  const p = { id, stop: () => { clearTimeout(p.timer); out.disconnect(); nodes.forEach((n) => { try { n.stop(); } catch {} }); if (btn) btn.innerHTML = PLAY; if (playing === p) playing = null; } };
+  const p = { id, btn, stop: () => { clearTimeout(p.timer); out.disconnect(); nodes.forEach((n) => { try { n.stop(); } catch {} }); if (btn) btn.innerHTML = PLAY; if (playing === p) playing = null; } };
   p.timer = setTimeout(() => p.stop(), (Math.min(limit, notes.length ? notes[notes.length - 1][0] : 0) + 4) * 1000);
   if (btn) btn.innerHTML = STOP;
   return p;
